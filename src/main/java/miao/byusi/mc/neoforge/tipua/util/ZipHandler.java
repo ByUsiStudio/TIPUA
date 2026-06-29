@@ -14,14 +14,22 @@ import java.util.zip.ZipInputStream;
  */
 public class ZipHandler {
 
+    public interface ExtractionProgressCallback {
+        void onFileExtracting(String relativePath, long current, long total);
+        void onComplete();
+        void onError(String error);
+    }
+
     /**
-     * 解压ZIP文件到游戏目录
+     * 解压ZIP文件到游戏目录（带进度回调）
      * @param zipFile ZIP文件
+     * @param callback 进度回调
      * @return 是否成功解压
      */
-    public static boolean extractZip(File zipFile) {
+    public static boolean extractZip(File zipFile, ExtractionProgressCallback callback) {
         if (!zipFile.exists()) {
             TIPUAMod.LOGGER.error("ZIP文件不存在: {}", zipFile.getAbsolutePath());
+            if (callback != null) callback.onError("ZIP文件不存在");
             return false;
         }
 
@@ -29,33 +37,63 @@ public class ZipHandler {
         Path tempDir = gameDir.resolve(".tipua_temp");
 
         try {
-            // 创建临时目录
             if (Files.exists(tempDir)) {
                 deleteDirectory(tempDir);
             }
             Files.createDirectories(tempDir);
 
-            // 解压到临时目录
-            unzipToDirectory(zipFile, tempDir);
+            long totalEntries = countZipEntries(zipFile);
+            long processedEntries = 0;
+            TIPUAMod.LOGGER.info("ZIP文件包含 {} 个条目 / ZIP file contains {} entries", totalEntries, totalEntries);
 
-            // 验证ZIP结构
+            try (ZipInputStream zis = new ZipInputStream(new FileInputStream(zipFile))) {
+                ZipEntry entry;
+                while ((entry = zis.getNextEntry()) != null) {
+                    Path entryPath = tempDir.resolve(entry.getName());
+
+                    if (!entryPath.normalize().startsWith(tempDir.normalize())) {
+                        TIPUAMod.LOGGER.warn("跳过可疑路径: {}", entry.getName());
+                        zis.closeEntry();
+                        continue;
+                    }
+
+                    if (!entry.isDirectory()) {
+                        processedEntries++;
+                        if (callback != null) {
+                            callback.onFileExtracting(entry.getName(), processedEntries, totalEntries);
+                        }
+                        TIPUAMod.LOGGER.debug("解压文件: {} / Extracting: {}", entry.getName(), entry.getName());
+                    }
+
+                    if (entry.isDirectory()) {
+                        Files.createDirectories(entryPath);
+                    } else {
+                        Files.createDirectories(entryPath.getParent());
+                        Files.copy(zis, entryPath, StandardCopyOption.REPLACE_EXISTING);
+                    }
+                    zis.closeEntry();
+                }
+            }
+
             if (!validateZipStructure(tempDir)) {
-                TIPUAMod.LOGGER.error("ZIP结构无效：必须包含config和mods目录");
+                String error = "ZIP结构无效：必须包含config和mods目录";
+                TIPUAMod.LOGGER.error(error);
+                if (callback != null) callback.onError(error);
                 deleteDirectory(tempDir);
                 return false;
             }
 
-            // 合并到游戏目录
             mergeToGameDirectory(tempDir, gameDir);
 
-            // 清理临时目录
             deleteDirectory(tempDir);
 
+            if (callback != null) callback.onComplete();
             TIPUAMod.LOGGER.info("ZIP解压完成 / ZIP extraction completed");
             return true;
 
         } catch (Exception e) {
             TIPUAMod.LOGGER.error("ZIP解压失败 / ZIP extraction failed", e);
+            if (callback != null) callback.onError(e.getMessage());
             try {
                 deleteDirectory(tempDir);
             } catch (Exception ignored) {
@@ -64,59 +102,26 @@ public class ZipHandler {
         }
     }
 
-    /**
-     * 解压ZIP到指定目录
-     */
-    private static void unzipToDirectory(File zipFile, Path targetDir) throws IOException {
+    private static long countZipEntries(File zipFile) throws IOException {
+        long count = 0;
         try (ZipInputStream zis = new ZipInputStream(new FileInputStream(zipFile))) {
-            ZipEntry entry;
-            while ((entry = zis.getNextEntry()) != null) {
-                Path entryPath = targetDir.resolve(entry.getName());
-
-                // 防止路径遍历攻击
-                if (!entryPath.normalize().startsWith(targetDir.normalize())) {
-                    TIPUAMod.LOGGER.warn("跳过可疑路径: {}", entry.getName());
-                    zis.closeEntry();
-                    continue;
-                }
-
-                if (entry.isDirectory()) {
-                    Files.createDirectories(entryPath);
-                } else {
-                    Files.createDirectories(entryPath.getParent());
-                    Files.copy(zis, entryPath, StandardCopyOption.REPLACE_EXISTING);
-                }
+            while (zis.getNextEntry() != null) {
+                count++;
                 zis.closeEntry();
             }
         }
+        return count;
     }
 
-    /**
-     * 验证ZIP结构：必须包含config和mods目录
-     */
-    private static boolean validateZipStructure(Path tempDir) {
-        boolean hasConfig = Files.exists(tempDir.resolve("config")) && Files.isDirectory(tempDir.resolve("config"));
-        boolean hasMods = Files.exists(tempDir.resolve("mods")) && Files.isDirectory(tempDir.resolve("mods"));
-
-        return hasConfig && hasMods;
-    }
-
-    /**
-     * 合并临时目录到游戏目录
-     * config和mods目录：合并（保留现有文件，添加新文件）
-     * 其他文件：替换
-     */
     private static void mergeToGameDirectory(Path tempDir, Path gameDir) throws IOException {
         Files.list(tempDir).forEach(source -> {
             try {
                 String name = source.getFileName().toString();
                 Path target = gameDir.resolve(name);
 
-                // config和mods目录：合并
                 if (name.equals("config") || name.equals("mods")) {
                     mergeDirectory(source, target);
                 } else {
-                    // 其他文件：替换
                     if (Files.exists(target)) {
                         if (Files.isDirectory(target)) {
                             deleteDirectory(target);
@@ -132,9 +137,6 @@ public class ZipHandler {
         });
     }
 
-    /**
-     * 合并目录（保留现有文件，添加新文件，更新同名文件）
-     */
     private static void mergeDirectory(Path source, Path target) throws IOException {
         if (!Files.exists(target)) {
             Files.createDirectories(target);
@@ -158,13 +160,10 @@ public class ZipHandler {
         });
     }
 
-    /**
-     * 删除目录及其内容
-     */
     private static void deleteDirectory(Path directory) throws IOException {
         if (Files.exists(directory)) {
             Files.walk(directory)
-                    .sorted((a, b) -> b.compareTo(a)) // 先删除文件，再删除目录
+                    .sorted((a, b) -> b.compareTo(a))
                     .forEach(path -> {
                         try {
                             Files.delete(path);
@@ -173,5 +172,23 @@ public class ZipHandler {
                         }
                     });
         }
+    }
+
+    /**
+     * 验证ZIP结构是否包含必要的目录
+     * @param tempDir 临时解压目录
+     * @return 是否有效
+     */
+    private static boolean validateZipStructure(Path tempDir) {
+        Path configDir = tempDir.resolve("config");
+        Path modsDir = tempDir.resolve("mods");
+
+        boolean hasConfig = Files.exists(configDir) && Files.isDirectory(configDir);
+        boolean hasMods = Files.exists(modsDir) && Files.isDirectory(modsDir);
+
+        TIPUAMod.LOGGER.info("ZIP结构验证: config={}, mods={} / ZIP structure validation: config={}, mods={}", 
+                hasConfig, hasMods, hasConfig, hasMods);
+
+        return hasConfig && hasMods;
     }
 }

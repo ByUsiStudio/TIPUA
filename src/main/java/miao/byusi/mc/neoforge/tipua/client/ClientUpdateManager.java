@@ -10,9 +10,12 @@ import net.neoforged.fml.loading.FMLPaths;
 
 import java.io.*;
 import java.net.HttpURLConnection;
+import java.net.URI;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -26,10 +29,6 @@ public class ClientUpdateManager {
     private static volatile ModpackDownloadScreen downloadScreen;
     private static volatile boolean isDownloading = false;
 
-    /**
-     * 进入主菜单后检查更新
-     * 只在首次进入主菜单时检查，避免重复检查
-     */
     public static void checkUpdateOnMainMenu() {
         if (hasCheckedUpdate) {
             return;
@@ -50,9 +49,6 @@ public class ClientUpdateManager {
         startUpdateCheck();
     }
 
-    /**
-     * 开始检查更新（异步）
-     */
     private static void startUpdateCheck() {
         if (updateExecutor != null) {
             updateExecutor.shutdownNow();
@@ -73,9 +69,6 @@ public class ClientUpdateManager {
         });
     }
 
-    /**
-     * 执行更新检查
-     */
     private static void doUpdateCheck() {
         String serverAddress = Config.CLIENT.serverAddress.get();
         int serverPort = Config.CLIENT.httpPort.get();
@@ -145,7 +138,9 @@ public class ClientUpdateManager {
         
         Path downloadedZip = null;
         try {
-            downloadedZip = downloadZipFromUrl(new URL(downloadUrl), finalServerVersion);
+            String encodedUrl = encodeUrlWithChinese(downloadUrl);
+            TIPUAMod.LOGGER.info("编码后的下载地址: {} / Encoded download URL: {}", encodedUrl, encodedUrl);
+            downloadedZip = downloadZipWithResume(new URL(encodedUrl), finalServerVersion);
         } catch (Exception e) {
             TIPUAMod.LOGGER.error("下载过程异常 / Download process exception", e);
             executeOnMainThread(() -> {
@@ -169,24 +164,42 @@ public class ClientUpdateManager {
             return;
         }
 
-        executeOnMainThread(() -> {
-            if (downloadScreen != null) {
-                downloadScreen.setComplete();
-            }
-        });
-
         if (Config.CLIENT.autoExtract.get()) {
             TIPUAMod.LOGGER.info("开始解压ZIP / Extracting ZIP");
-            long fileSize = downloadedZip.toFile().length();
-            executeOnMainThread(() -> {
-                if (downloadScreen != null) {
-                    downloadScreen.updateProgress(fileSize, fileSize, "解压中...");
+            
+            boolean extractionSuccess = ZipHandler.extractZip(downloadedZip.toFile(), new ZipHandler.ExtractionProgressCallback() {
+                @Override
+                public void onFileExtracting(String relativePath, long current, long total) {
+                    executeOnMainThread(() -> {
+                        if (downloadScreen != null) {
+                            downloadScreen.updateExtractionProgress(relativePath, current, total);
+                        }
+                    });
+                }
+
+                @Override
+                public void onComplete() {
+                    TIPUAMod.LOGGER.info("解压完成 / Extraction completed");
+                    executeOnMainThread(() -> {
+                        if (downloadScreen != null) {
+                            downloadScreen.setExtractionComplete();
+                        }
+                    });
+                }
+
+                @Override
+                public void onError(String error) {
+                    TIPUAMod.LOGGER.error("解压失败 / Extraction failed: {}", error);
+                    showToast("更新失败 / Update failed", "解压失败: " + error);
+                    executeOnMainThread(() -> {
+                        if (downloadScreen != null) {
+                            downloadScreen.setError("解压失败: " + error);
+                        }
+                    });
                 }
             });
-            
-            if (!ZipHandler.extractZip(downloadedZip.toFile())) {
-                TIPUAMod.LOGGER.error("解压失败 / Extraction failed");
-                showToast("更新失败 / Update failed", "解压整合包失败 / Failed to extract modpack");
+
+            if (!extractionSuccess) {
                 isDownloading = false;
                 return;
             }
@@ -202,32 +215,68 @@ public class ClientUpdateManager {
 
         isDownloading = false;
 
+        executeOnMainThread(() -> {
+            if (downloadScreen != null) {
+                downloadScreen.showRestartButton();
+            }
+        });
+
         showToast("更新完成 / Update completed", "请重启游戏以使更改生效 / Please restart to apply changes");
         TIPUAMod.LOGGER.info("更新完成 / Update completed");
     }
 
     /**
-     * 通用下载方法
+     * 支持断点续传的下载方法
      */
-    private static Path downloadZipFromUrl(URL url, String version) throws IOException {
+    private static Path downloadZipWithResume(URL url, String version) throws IOException {
+        Path tempZip = FMLPaths.GAMEDIR.get().resolve(".tipua_temp_download.zip");
+        long existingBytes = 0;
+        
+        if (Files.exists(tempZip)) {
+            existingBytes = Files.size(tempZip);
+            TIPUAMod.LOGGER.info("检测到已下载 {} 字节，尝试续传 / Detected {} bytes already downloaded, attempting resume", existingBytes, existingBytes);
+        }
+
         HttpURLConnection connection = (HttpURLConnection) url.openConnection();
         connection.setConnectTimeout(Config.CLIENT.downloadTimeoutSeconds.get() * 1000);
         connection.setReadTimeout(Config.CLIENT.downloadTimeoutSeconds.get() * 1000);
         connection.setRequestProperty("User-Agent", "TIPUA/1.0.0");
 
-        if (connection.getResponseCode() != HttpURLConnection.HTTP_OK) {
-            throw new IOException("下载ZIP失败: HTTP " + connection.getResponseCode() + " / Download failed: HTTP " + connection.getResponseCode());
+        if (existingBytes > 0) {
+            connection.setRequestProperty("Range", "bytes=" + existingBytes + "-");
+        }
+
+        int responseCode = connection.getResponseCode();
+        TIPUAMod.LOGGER.info("HTTP响应码: {} / HTTP response code: {}", responseCode, responseCode);
+
+        boolean isResume = responseCode == HttpURLConnection.HTTP_PARTIAL;
+        if (!isResume && responseCode != HttpURLConnection.HTTP_OK) {
+            if (existingBytes > 0) {
+                TIPUAMod.LOGGER.warn("续传失败，重新开始下载 / Resume failed, restarting download");
+                Files.deleteIfExists(tempZip);
+                connection.disconnect();
+                return downloadZipWithResume(url, version);
+            }
+            throw new IOException("下载ZIP失败: HTTP " + responseCode + " / Download failed: HTTP " + responseCode);
         }
 
         int contentLength = connection.getContentLength();
-        Path tempZip = FMLPaths.GAMEDIR.get().resolve(".tipua_temp_download.zip");
+        long totalSize = contentLength;
+        if (isResume) {
+            totalSize += existingBytes;
+        }
 
-        try (InputStream is = connection.getInputStream();
-             OutputStream os = Files.newOutputStream(tempZip)) {
+        OutputStream os;
+        if (isResume) {
+            os = Files.newOutputStream(tempZip, StandardOpenOption.APPEND);
+        } else {
+            os = Files.newOutputStream(tempZip);
+        }
 
+        try (InputStream is = connection.getInputStream()) {
             byte[] buffer = new byte[8192];
             int read;
-            long totalRead = 0;
+            long totalRead = existingBytes;
             long lastUpdateTime = System.currentTimeMillis();
             
             while ((read = is.read(buffer)) != -1) {
@@ -237,9 +286,10 @@ public class ClientUpdateManager {
                 long currentTime = System.currentTimeMillis();
                 if (currentTime - lastUpdateTime > 500) {
                     final long finalTotalRead = totalRead;
+                    final long finalTotalSize = totalSize;
                     executeOnMainThread(() -> {
                         if (downloadScreen != null) {
-                            downloadScreen.updateProgress(finalTotalRead, contentLength, "下载中...");
+                            downloadScreen.updateDownloadProgress(finalTotalRead, finalTotalSize);
                         }
                     });
                     lastUpdateTime = currentTime;
@@ -252,15 +302,13 @@ public class ClientUpdateManager {
 
             TIPUAMod.LOGGER.info("ZIP下载完成: {} bytes / ZIP downloaded: {} bytes", totalRead, totalRead);
         } finally {
+            os.close();
             connection.disconnect();
         }
 
         return tempZip;
     }
 
-    /**
-     * 从服务器获取版本标识
-     */
     private static String fetchServerVersion(String serverUrl) {
         try {
             URL url = new URL(serverUrl + "/version");
@@ -284,9 +332,6 @@ public class ClientUpdateManager {
         }
     }
 
-    /**
-     * 从服务器获取下载地址（直链）
-     */
     private static String fetchDownloadUrl(String serverUrl) {
         try {
             URL url = new URL(serverUrl + "/download-url");
@@ -310,9 +355,6 @@ public class ClientUpdateManager {
         }
     }
 
-    /**
-     * 取消下载
-     */
     private static void cancelDownload() {
         isDownloading = false;
         if (updateExecutor != null) {
@@ -321,9 +363,6 @@ public class ClientUpdateManager {
         TIPUAMod.LOGGER.info("下载已取消 / Download cancelled");
     }
 
-    /**
-     * 在主线程执行任务
-     */
     private static void executeOnMainThread(Runnable runnable) {
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft != null) {
@@ -331,10 +370,37 @@ public class ClientUpdateManager {
         }
     }
 
-    /**
-     * 显示通知日志
-     */
     private static void showToast(String title, String message) {
         TIPUAMod.LOGGER.info("[通知/Notification] {} - {}", title, message);
+    }
+
+    private static String encodeUrlWithChinese(String url) {
+        try {
+            URI uri = new URI(url);
+            String scheme = uri.getScheme();
+            String authority = uri.getAuthority();
+            String path = uri.getPath();
+            
+            if (path != null && !path.isEmpty()) {
+                String[] segments = path.split("/");
+                StringBuilder encodedPath = new StringBuilder();
+                for (String segment : segments) {
+                    if (!segment.isEmpty()) {
+                        String encodedSegment = java.net.URLEncoder.encode(segment, StandardCharsets.UTF_8.name())
+                            .replace("+", "%20");
+                        encodedPath.append("/").append(encodedSegment);
+                    }
+                }
+                path = encodedPath.toString();
+            }
+            
+            String query = uri.getQuery();
+            String fragment = uri.getFragment();
+            
+            return new URI(scheme, authority, path, query, fragment).toString();
+        } catch (Exception e) {
+            TIPUAMod.LOGGER.warn("URL编码失败，使用原始URL / Failed to encode URL, using original", e);
+            return url;
+        }
     }
 }
