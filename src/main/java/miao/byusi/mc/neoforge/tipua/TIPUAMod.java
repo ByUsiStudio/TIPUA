@@ -1,18 +1,22 @@
 package miao.byusi.mc.neoforge.tipua;
 
 import miao.byusi.mc.neoforge.tipua.config.Config;
-import miao.byusi.mc.neoforge.tipua.network.TIPUANetwork;
+import miao.byusi.mc.neoforge.tipua.util.VersionManager;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.config.ModConfig;
 import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.neoforged.fml.loading.FMLPaths;
-import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
+import net.neoforged.fml.ModContainer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
 
+/**
+ * TIPUA主模组类
+ * 整合包自动更新工具 - The Integration Package Updates Automatically
+ */
 @Mod(TIPUAMod.MOD_ID)
 public class TIPUAMod {
     public static final String MOD_ID = "tipua";
@@ -22,25 +26,46 @@ public class TIPUAMod {
     public static final File CONFIG_DIR = new File(FMLPaths.CONFIGDIR.get().toFile(), MOD_ID);
     public static final File MODPACK_DIR = new File(FMLPaths.GAMEDIR.get().toFile(), "modpacks");
 
-    public TIPUAMod(IEventBus bus) {
+    public TIPUAMod(IEventBus bus, ModContainer container) {
         bus.addListener(this::commonSetup);
-        bus.addListener(this::registerNetwork);
 
-        net.neoforged.fml.ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, Config.COMMON_SPEC);
+        // 注册配置 - 使用 ModContainer
+        container.registerConfig(ModConfig.Type.COMMON, Config.COMMON_SPEC);
+
+        LOGGER.info("TIPUA已加载 - 整合包自动更新工具 / TIPUA loaded - The Integration Package Updates Automatically");
     }
 
     private void commonSetup(final FMLCommonSetupEvent event) {
         event.enqueueWork(() -> {
+            // 创建必要目录
             if (!CONFIG_DIR.exists()) {
                 CONFIG_DIR.mkdirs();
+                LOGGER.info("配置目录已创建: {} / Config directory created: {}", CONFIG_DIR.getAbsolutePath(), CONFIG_DIR.getAbsolutePath());
             }
             if (!MODPACK_DIR.exists()) {
                 MODPACK_DIR.mkdirs();
+                LOGGER.info("整合包目录已创建: {} / Modpack directory created: {}", MODPACK_DIR.getAbsolutePath(), MODPACK_DIR.getAbsolutePath());
+            }
+
+            // 初始化版本管理器（确保版本文件存在）
+            String localVersion = VersionManager.getLocalVersion();
+            LOGGER.info("本地版本标识: {} / Local version: {}", localVersion.isEmpty() ? "无" : localVersion, localVersion.isEmpty() ? "none" : localVersion);
+
+            // 客户端侧注册事件处理器
+            if (net.neoforged.fml.loading.FMLLoader.getDist().isClient()) {
+                registerClientEvents();
             }
         });
     }
 
-    private void registerNetwork(final RegisterPayloadHandlersEvent event) {
-        TIPUANetwork.register(event);
+    private void registerClientEvents() {
+        try {
+            Class<?> clientHandler = Class.forName("miao.byusi.mc.neoforge.tipua.client.ClientEventHandler");
+            java.lang.reflect.Method registerMethod = clientHandler.getMethod("register");
+            registerMethod.invoke(null);
+            LOGGER.info("客户端事件处理器已注册 / Client event handler registered");
+        } catch (Exception e) {
+            LOGGER.warn("客户端事件处理器注册失败 / Failed to register client event handler", e);
+        }
     }
 }
