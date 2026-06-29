@@ -1,0 +1,23 @@
+{
+  "tipua.update.up_to_date": "Modpack Up to Date",
+  "tipua.update.no_changes": "Your modpack is already synchronized with the server.",
+  "tipua.update.available": "Modpack Update Available",
+  "tipua.update.checking": "Checking for required mod updates...",
+  "tipua.update.completed": "Update Completed",
+  "tipua.update.restart_required": "Please restart Minecraft for changes to take effect.",
+  "tipua.update.failed": "Update Failed",
+  "tipua.config.server.http_port": "HTTP Port",
+  "tipua.config.server.modpack_path": "Modpack Path",
+  "tipua.config.server.check_interval": "Check Interval (seconds)",
+  "tipua.config.server.enable_file_server": "Enable File Server",
+  "tipua.config.server.enable_hash_verification": "Enable Hash Verification",
+  "tipua.config.server.default_modpack_format": "Default Modpack Format",
+  "tipua.config.client.auto_update": "Auto Update",
+  "tipua.config.client.auto_download_mods": "Auto Download Mods",
+  "tipua.config.client.enable_hash_verification": "Enable Hash Verification",
+  "tipua.config.client.download_timeout": "Download Timeout (seconds)",
+  "tipua.config.client.max_concurrent_downloads": "Max Concurrent Downloads",
+  "tipua.config.client.show_update_notification": "Show Update Notification",
+  "tipua.config.client.ask_before_install": "Ask Before Install",
+  "tipua.config.client.ignored_mods": "Ignored Mods"
+}

@@ -1,0 +1,23 @@
+{
+  "tipua.update.up_to_date": "整合包已是最新",
+  "tipua.update.no_changes": "您的整合包已与服务器同步。",
+  "tipua.update.available": "整合包更新可用",
+  "tipua.update.checking": "正在检查所需的模组更新...",
+  "tipua.update.completed": "更新完成",
+  "tipua.update.restart_required": "请重启Minecraft以使更改生效。",
+  "tipua.update.failed": "更新失败",
+  "tipua.config.server.http_port": "HTTP端口",
+  "tipua.config.server.modpack_path": "整合包路径",
+  "tipua.config.server.check_interval": "检查间隔（秒）",
+  "tipua.config.server.enable_file_server": "启用文件服务器",
+  "tipua.config.server.enable_hash_verification": "启用哈希验证",
+  "tipua.config.server.default_modpack_format": "默认整合包格式",
+  "tipua.config.client.auto_update": "自动更新",
+  "tipua.config.client.auto_download_mods": "自动下载模组",
+  "tipua.config.client.enable_hash_verification": "启用哈希验证",
+  "tipua.config.client.download_timeout": "下载超时（秒）",
+  "tipua.config.client.max_concurrent_downloads": "最大并发下载数",
+  "tipua.config.client.show_update_notification": "显示更新通知",
+  "tipua.config.client.ask_before_install": "安装前询问",
+  "tipua.config.client.ignored_mods": "忽略的模组"
+}
