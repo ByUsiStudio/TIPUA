@@ -81,8 +81,8 @@ A NeoForge mod that automatically synchronizes modpacks between server and clien
 
 ## License
 
-LGPL-3.0
+AGPL-3.0
 
 ## Credits
 
-ByUsi
+ByUsi Studio
