@@ -62,8 +62,13 @@ public class ModpackDownloadScreen extends Screen {
     }
     
     @Override
+    public void renderBackground(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+        guiGraphics.fill(0, 0, this.width, this.height, 0xC0101010);
+    }
+    
+    @Override
     public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-        renderBackground(guiGraphics, mouseX, mouseY, partialTick);
+        guiGraphics.fill(0, 0, this.width, this.height, 0xC0101010);
         
         int centerX = this.width / 2;
         int centerY = this.height / 2;
@@ -159,7 +164,7 @@ public class ModpackDownloadScreen extends Screen {
             restartButton.visible = false;
         }
         
-        super.render(guiGraphics, mouseX, mouseY, partialTick);
+        this.renderables.forEach(widget -> widget.render(guiGraphics, mouseX, mouseY, partialTick));
     }
     
     public void updateDownloadProgress(long downloadedBytes, long totalBytes) {
