@@ -14,11 +14,11 @@ public class ClientEventHandler {
     private static boolean hasTriggeredCheck = false;
 
     public static void register() {
-        net.neoforged.neoforge.common.NeoForge.EVENT_BUS.addListener(ClientEventHandler::onClientTick);
+        net.neoforged.neoforge.common.NeoForge.EVENT_BUS.addListener(ClientEventHandler::onClientTickPost);
     }
 
     @SubscribeEvent
-    public static void onClientTick(ClientTickEvent event) {
+    public static void onClientTickPost(ClientTickEvent.Post event) {
         if (hasTriggeredCheck) {
             return;
         }
