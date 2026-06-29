@@ -5,7 +5,6 @@ import miao.byusi.mc.neoforge.tipua.TIPUAMod;
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.MessageDigest;
 
 /**
  * 版本管理器 - 管理版本标识文件
@@ -96,31 +95,60 @@ public class VersionManager {
     }
 
     /**
-     * 计算文件的SHA-256哈希作为版本标识
+     * 比较两个版本号
+     * @return 负数表示 version1 < version2，0表示相等，正数表示 version1 > version2
      */
-    public static String calculateFileHash(File file) {
-        if (!file.exists()) {
-            return "";
+    public static int compareVersions(String version1, String version2) {
+        if (version1 == null || version1.isEmpty()) return -1;
+        if (version2 == null || version2.isEmpty()) return 1;
+
+        String[] parts1 = version1.split("\\.");
+        String[] parts2 = version2.split("\\.");
+
+        int maxLength = Math.max(parts1.length, parts2.length);
+
+        for (int i = 0; i < maxLength; i++) {
+            int num1 = (i < parts1.length) ? parseIntSafe(parts1[i]) : 0;
+            int num2 = (i < parts2.length) ? parseIntSafe(parts2[i]) : 0;
+
+            if (num1 != num2) {
+                return num1 - num2;
+            }
         }
 
+        return 0;
+    }
+
+    /**
+     * 安全解析整数，失败返回0
+     */
+    private static int parseIntSafe(String str) {
         try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] buffer = new byte[8192];
-            try (InputStream is = new FileInputStream(file)) {
-                int read;
-                while ((read = is.read(buffer)) != -1) {
-                    digest.update(buffer, 0, read);
-                }
-            }
-            byte[] hash = digest.digest();
-            StringBuilder sb = new StringBuilder();
-            for (byte b : hash) {
-                sb.append(String.format("%02x", b));
-            }
-            return sb.toString();
-        } catch (Exception e) {
-            TIPUAMod.LOGGER.error("计算哈希失败 / Failed to calculate hash", e);
-            return "";
+            return Integer.parseInt(str);
+        } catch (NumberFormatException e) {
+            return 0;
         }
+    }
+
+    /**
+     * 检查版本号格式是否有效（如：1.2.1）
+     */
+    public static boolean isValidVersion(String version) {
+        if (version == null || version.isEmpty()) {
+            return false;
+        }
+
+        String[] parts = version.split("\\.");
+        if (parts.length == 0 || parts.length > 4) {
+            return false;
+        }
+
+        for (String part : parts) {
+            if (part.isEmpty() || !part.matches("\\d+")) {
+                return false;
+            }
+        }
+
+        return true;
     }
 }

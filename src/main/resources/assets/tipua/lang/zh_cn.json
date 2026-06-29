@@ -1,14 +1,15 @@
 {
-  "tipua.update.up_to_date": "整合包已是最新",
-  "tipua.update.no_changes": "您的整合包已同步完成。",
-  "tipua.update.available": "整合包更新可用",
-  "tipua.update.downloading": "正在下载并解压更新...",
-  "tipua.update.completed": "更新完成",
-  "tipua.update.restart_required": "请重启Minecraft以使更改生效。",
-  "tipua.update.failed": "更新失败",
-  "tipua.update.check_error": "检查更新失败。",
-  "tipua.update.server_unavailable": "服务器不可用。",
-  "tipua.update.download_error": "下载整合包失败。",
-  "tipua.update.hash_error": "哈希验证失败。",
-  "tipua.update.extract_error": "解压整合包失败。"
+  "tipua.gui.download.title": "整合包更新",
+  "tipua.gui.download.version": "目标版本: %s",
+  "tipua.gui.download.starting": "开始下载...",
+  "tipua.gui.download.downloading": "下载中...",
+  "tipua.gui.download.complete": "下载完成！",
+  "tipua.gui.download.error": "下载失败",
+  "tipua.gui.download.speed": "速度: %s",
+  "tipua.gui.download.remaining": "剩余时间: %s",
+  "tipua.notification.update.title": "整合包更新可用",
+  "tipua.notification.update.message": "新版本: %s",
+  "tipua.notification.update.downloading": "正在下载整合包...",
+  "tipua.notification.update.complete": "整合包更新完成",
+  "tipua.notification.update.failed": "整合包更新失败"
 }

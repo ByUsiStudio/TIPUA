@@ -1,14 +1,15 @@
 {
-  "tipua.update.up_to_date": "Modpack Up to Date",
-  "tipua.update.no_changes": "Your modpack is already synchronized.",
-  "tipua.update.available": "Modpack Update Available",
-  "tipua.update.downloading": "Downloading and extracting updates...",
-  "tipua.update.completed": "Update Completed",
-  "tipua.update.restart_required": "Please restart Minecraft for changes to take effect.",
-  "tipua.update.failed": "Update Failed",
-  "tipua.update.check_error": "Failed to check for updates.",
-  "tipua.update.server_unavailable": "Server is unavailable.",
-  "tipua.update.download_error": "Failed to download modpack.",
-  "tipua.update.hash_error": "Hash verification failed.",
-  "tipua.update.extract_error": "Failed to extract modpack."
+  "tipua.gui.download.title": "Modpack Update",
+  "tipua.gui.download.version": "Target version: %s",
+  "tipua.gui.download.starting": "Starting download...",
+  "tipua.gui.download.downloading": "Downloading...",
+  "tipua.gui.download.complete": "Download complete!",
+  "tipua.gui.download.error": "Download failed",
+  "tipua.gui.download.speed": "Speed: %s",
+  "tipua.gui.download.remaining": "Remaining: %s",
+  "tipua.notification.update.title": "Modpack Update Available",
+  "tipua.notification.update.message": "New version: %s",
+  "tipua.notification.update.downloading": "Downloading modpack...",
+  "tipua.notification.update.complete": "Modpack update complete",
+  "tipua.notification.update.failed": "Modpack update failed"
 }

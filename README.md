@@ -11,12 +11,12 @@ A NeoForge mod that automatically synchronizes modpacks between server and clien
 
 ### Features
 
-- **Server-Side ZIP Monitoring**: Automatically detects changes to the server's ZIP archive
-- **HTTP File Server**: Built-in HTTP server for efficient file distribution
-- **Version Identifier**: Local version tracking with auto-generated identifier file
+- **Version Management**: Semantic version system (e.g., 1.2.1) for precise version control
+- **Direct Download**: Server provides direct download URLs for modpack files
+- **Download Progress Display**: Real-time download progress with speed and time remaining
 - **Auto-Extract**: Automatically extracts `config` and `mods` directories, other files are replaced by default
 - **Auto-Download**: Clients automatically download and extract updates when joining
-- **Hash Verification**: SHA-256 hash verification for secure downloads
+- **Server Commands**: In-game commands for managing and monitoring TIPUA
 - **Configurable**: Fully configurable behavior for both server and client
 
 ### Requirements
@@ -41,13 +41,11 @@ modpack.zip
 #### Server Installation
 
 1. Place the TIPUA mod JAR in your server's `mods/` directory
-2. Create a `modpacks/` directory in your server root
-3. Place your ZIP archive in the `modpacks/` directory
-4. Configure `tipua-common.toml` in the `config/` directory:
-   - Set `zipPath` to your ZIP archive
-   - Set `httpPort` (default: 25566)
-   - Set `serverAddress` for client connection
-5. Start the server
+2. Configure `tipua-common.toml` in the `config/` directory:
+   - Set `serverVersion` to your modpack version (e.g., "1.0.0")
+   - Set `modpackDownloadUrl` to your direct download URL (e.g., "https://example.com/modpack.zip")
+   - Set `httpPort` (default: 25566) for version query endpoint
+3. Start the server
 
 #### Client Installation
 
@@ -64,11 +62,9 @@ modpack.zip
 
 | Setting | Description | Default |
 |---------|-------------|---------|
-| `httpPort` | HTTP server port | 25566 |
-| `zipPath` | Path to ZIP archive | modpacks/default.zip |
-| `checkIntervalSeconds` | ZIP check interval | 60 |
-| `enableFileServer` | Enable HTTP server | true |
-| `enableHashVerification` | Enable SHA-256 verification | true |
+| `httpPort` | HTTP server port (for version query) | 25566 |
+| `serverVersion` | Current modpack version (e.g., 1.2.1) | 1.0.0 |
+| `modpackDownloadUrl` | Direct download URL (must be configured) | (empty) |
 
 #### Client Settings
 
@@ -78,17 +74,31 @@ modpack.zip
 | `httpPort` | Server HTTP port | 25566 |
 | `autoUpdate` | Auto-check for updates | true |
 | `autoExtract` | Auto-extract ZIP archives | true |
-| `enableHashVerification` | Enable SHA-256 verification | true |
-| `downloadTimeoutSeconds` | Download timeout | 300 |
+| `downloadTimeoutSeconds` | Download timeout (seconds) | 300 |
 | `showUpdateNotification` | Show notifications | true |
+| `modpackDownloadUrl` | Override download URL (empty = get from server) | (empty) |
+
+### Server Commands
+
+Server admins can use the following commands:
+
+| Command | Description |
+|---------|-------------|
+| `/tipua` | Show TIPUA help |
+| `/tipua version` | Show current modpack version |
+| `/tipua url` | Show configured download URL |
+| `/tipua info` | Show complete server configuration |
+| `/tipua reload` | Reload TIPUA config (version and URL take effect immediately) |
 
 ### How It Works
 
-1. **Version Check**: Server generates version identifier from ZIP hash
-2. **Client Join**: Client compares local version with server version
-3. **Download**: If different, client downloads ZIP via HTTP
-4. **Extract**: ZIP is extracted, `config` and `mods` are merged, other files replaced
-5. **Restart**: User prompted to restart for changes
+1. **Version Query**: Client queries server's `/version` endpoint
+2. **URL Query**: Client queries server's `/download-url` endpoint for direct download link
+3. **Comparison**: Client compares local version with server version
+4. **Download**: If server version is newer, client downloads ZIP from the direct URL
+5. **Progress Display**: Shows download progress bar, speed, and time remaining
+6. **Extract**: ZIP is extracted, `config` and `mods` are merged, other files replaced
+7. **Restart**: User prompted to restart for changes
 
 ### License
 
@@ -106,12 +116,12 @@ ByUsi Studio
 
 ### 功能特性
 
-- **服务端ZIP监控**：自动检测服务端ZIP压缩包的变化
-- **HTTP文件服务器**：内置HTTP服务器，高效分发文件
-- **版本标识系统**：本地版本追踪，自动生成版本标识文件
+- **版本管理**：语义化版本系统（如1.2.1），精确控制版本
+- **直链下载**：服务端提供直链下载地址，客户端直接下载
+- **下载进度显示**：实时显示下载进度、速度和剩余时间
 - **自动解压**：自动解压 `config` 和 `mods` 目录，其他文件默认替换
 - **自动下载**：客户端加入时自动下载并解压更新
-- **哈希验证**：SHA-256哈希验证，确保下载安全
+- **服务端命令**：游戏内命令管理和监控TIPUA
 - **完全可配置**：服务端和客户端行为均可配置
 
 ### 运行要求
@@ -136,13 +146,11 @@ modpack.zip
 #### 服务端安装
 
 1. 将TIPUA模组JAR放入服务器的 `mods/` 目录
-2. 在服务器根目录创建 `modpacks/` 目录
-3. 将ZIP压缩包放入 `modpacks/` 目录
-4. 在 `config/` 目录配置 `tipua-common.toml`：
-   - 设置 `zipPath` 为你的ZIP压缩包路径
-   - 设置 `httpPort`（默认：25566）
-   - 设置 `serverAddress` 供客户端连接
-5. 启动服务器
+2. 在 `config/` 目录配置 `tipua-common.toml`：
+   - 设置 `serverVersion` 为整合包版本号（如 "1.0.0"）
+   - 设置 `modpackDownloadUrl` 为直链下载地址（如 "https://example.com/modpack.zip"）
+   - 设置 `httpPort`（默认：25566）用于版本查询端点
+3. 启动服务器
 
 #### 客户端安装
 
@@ -159,11 +167,9 @@ modpack.zip
 
 | 设置项 | 描述 | 默认值 |
 |-------|------|--------|
-| `httpPort` | HTTP服务器端口 | 25566 |
-| `zipPath` | ZIP压缩包路径 | modpacks/default.zip |
-| `checkIntervalSeconds` | ZIP检查间隔（秒） | 60 |
-| `enableFileServer` | 启用HTTP服务器 | true |
-| `enableHashVerification` | 启用SHA-256验证 | true |
+| `httpPort` | HTTP服务器端口（用于版本查询） | 25566 |
+| `serverVersion` | 当前整合包版本号（如1.2.1） | 1.0.0 |
+| `modpackDownloadUrl` | 直链下载地址（必须配置） | (空) |
 
 #### 客户端设置
 
@@ -173,17 +179,31 @@ modpack.zip
 | `httpPort` | 服务器HTTP端口 | 25566 |
 | `autoUpdate` | 自动检查更新 | true |
 | `autoExtract` | 自动解压ZIP | true |
-| `enableHashVerification` | 启用SHA-256验证 | true |
 | `downloadTimeoutSeconds` | 下载超时（秒） | 300 |
 | `showUpdateNotification` | 显示通知 | true |
+| `modpackDownloadUrl` | 覆盖下载地址（留空则从服务端获取） | (空) |
+
+### 服务端命令
+
+服务端OP可使用以下命令：
+
+| 命令 | 描述 |
+|-----|------|
+| `/tipua` | 显示TIPUA帮助信息 |
+| `/tipua version` | 显示当前整合包版本 |
+| `/tipua url` | 显示配置的直链下载地址 |
+| `/tipua info` | 显示完整的服务器配置信息 |
+| `/tipua reload` | 重载TIPUA配置（版本号和下载地址即时生效） |
 
 ### 工作原理
 
-1. **版本检查**：服务端从ZIP哈希生成版本标识
-2. **客户端加入**：客户端对比本地版本与服务端版本
-3. **下载**：如果版本不同，客户端通过HTTP下载ZIP
-4. **解压**：ZIP被解压，`config` 和 `mods` 合并，其他文件替换
-5. **重启**：提示用户重启以使更改生效
+1. **版本查询**：客户端向服务端 `/version` 端点查询版本
+2. **地址查询**：客户端向服务端 `/download-url` 端点获取直链
+3. **版本对比**：客户端对比本地版本与服务端版本
+4. **下载**：如果服务端版本更新，客户端从直链下载ZIP
+5. **进度显示**：显示下载进度条、速度和剩余时间
+6. **解压**：ZIP被解压，`config` 和 `mods` 合并，其他文件替换
+7. **重启**：提示用户重启以使更改生效
 
 ### 许可证
 

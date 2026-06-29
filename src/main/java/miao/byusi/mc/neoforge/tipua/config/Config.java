@@ -1,6 +1,7 @@
 package miao.byusi.mc.neoforge.tipua.config;
 
 import miao.byusi.mc.neoforge.tipua.TIPUAMod;
+import miao.byusi.mc.neoforge.tipua.server.ServerHttpManager;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.fml.event.config.ModConfigEvent;
@@ -27,31 +28,21 @@ public class Config {
 
     public static class ServerConfig {
         public final ModConfigSpec.IntValue httpPort;
-        public final ModConfigSpec.ConfigValue<String> zipPath;
-        public final ModConfigSpec.IntValue checkIntervalSeconds;
-        public final ModConfigSpec.BooleanValue enableFileServer;
-        public final ModConfigSpec.BooleanValue enableHashVerification;
+        public final ModConfigSpec.ConfigValue<String> serverVersion;
+        public final ModConfigSpec.ConfigValue<String> modpackDownloadUrl;
 
         ServerConfig(ModConfigSpec.Builder builder) {
             httpPort = builder
-                    .comment("HTTP文件服务器端口 / HTTP file server port")
+                    .comment("HTTP服务器端口（提供版本查询和直链地址） / HTTP server port (provides version query and direct URL)")
                     .defineInRange("httpPort", 25566, 1024, 65535);
 
-            zipPath = builder
-                    .comment("ZIP压缩包路径（必须包含config和mods目录） / ZIP archive path (must contain config and mods directories)")
-                    .define("zipPath", "modpacks/default.zip");
+            serverVersion = builder
+                    .comment("当前整合包版本号（如：1.2.1） / Current modpack version number (e.g., 1.2.1)")
+                    .define("serverVersion", "1.0.0");
 
-            checkIntervalSeconds = builder
-                    .comment("ZIP检查间隔（秒） / ZIP check interval in seconds")
-                    .defineInRange("checkIntervalSeconds", 60, 10, 3600);
-
-            enableFileServer = builder
-                    .comment("启用HTTP文件服务器 / Enable HTTP file server")
-                    .define("enableFileServer", true);
-
-            enableHashVerification = builder
-                    .comment("启用SHA-256哈希验证 / Enable SHA-256 hash verification")
-                    .define("enableHashVerification", true);
+            modpackDownloadUrl = builder
+                    .comment("整合包直链下载地址（必须配置，客户端将从这里下载） / Modpack direct download URL (must be configured, clients download from this URL)")
+                    .define("modpackDownloadUrl", "");
         }
     }
 
@@ -60,9 +51,9 @@ public class Config {
         public final ModConfigSpec.IntValue httpPort;
         public final ModConfigSpec.BooleanValue autoUpdate;
         public final ModConfigSpec.BooleanValue autoExtract;
-        public final ModConfigSpec.BooleanValue enableHashVerification;
         public final ModConfigSpec.IntValue downloadTimeoutSeconds;
         public final ModConfigSpec.BooleanValue showUpdateNotification;
+        public final ModConfigSpec.ConfigValue<String> modpackDownloadUrl;
 
         ClientConfig(ModConfigSpec.Builder builder) {
             serverAddress = builder
@@ -81,10 +72,6 @@ public class Config {
                     .comment("自动解压ZIP压缩包 / Auto-extract ZIP archives")
                     .define("autoExtract", true);
 
-            enableHashVerification = builder
-                    .comment("启用SHA-256哈希验证 / Enable SHA-256 hash verification")
-                    .define("enableHashVerification", true);
-
             downloadTimeoutSeconds = builder
                     .comment("下载超时（秒） / Download timeout in seconds")
                     .defineInRange("downloadTimeoutSeconds", 300, 30, 3600);
@@ -92,6 +79,10 @@ public class Config {
             showUpdateNotification = builder
                     .comment("显示更新通知 / Show update notifications")
                     .define("showUpdateNotification", true);
+
+            modpackDownloadUrl = builder
+                    .comment("整合包下载地址（高级选项：覆盖服务端提供的直链，留空则从服务端获取） / Modpack download URL (advanced: override server-provided direct URL, leave empty to get from server)")
+                    .define("modpackDownloadUrl", "");
         }
     }
 
@@ -103,5 +94,7 @@ public class Config {
     @SubscribeEvent
     public static void onReload(final ModConfigEvent.Reloading event) {
         TIPUAMod.LOGGER.info("TIPUA配置已重新加载 / TIPUA config reloaded");
+        // 通知服务端重载HTTP服务器配置
+        ServerHttpManager.reload();
     }
 }
