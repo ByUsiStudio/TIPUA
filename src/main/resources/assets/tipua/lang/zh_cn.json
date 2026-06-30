@@ -7,8 +7,6 @@
   "tipua.gui.download.single_thread": "单线程下载中...",
   "tipua.gui.download.complete": "更新完成！",
   "tipua.gui.download.error": "下载失败",
-  "tipua.gui.download.speed": "速度: %s",
-  "tipua.gui.download.remaining": "剩余时间: %s",
   "tipua.gui.download.extracting": "解压中...",
   "tipua.gui.download.extract_complete": "解压完成",
   "tipua.gui.download.update_complete": "更新完成",

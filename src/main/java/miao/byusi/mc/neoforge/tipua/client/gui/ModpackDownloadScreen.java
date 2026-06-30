@@ -19,7 +19,6 @@ public class ModpackDownloadScreen extends Screen {
     
     private long downloadedBytes = 0;
     private long totalBytes = 0;
-    private long startTime = 0;
     private String status = Component.translatable("tipua.gui.download.starting").getString();
     
     private long extractionCurrent = 0;
@@ -48,7 +47,6 @@ public class ModpackDownloadScreen extends Screen {
         this.version = version;
         this.onCancel = onCancel;
         this.onRollback = onRollback;
-        this.startTime = System.currentTimeMillis();
     }
     
     @Override
@@ -174,20 +172,6 @@ public class ModpackDownloadScreen extends Screen {
         String totalStr = formatBytes(totalBytes);
         Component sizeText = Component.literal(downloadedStr + " / " + totalStr);
         guiGraphics.drawCenteredString(this.font, sizeText, centerX, centerY + 20, 0xAAAAAA);
-        
-        long elapsedTime = System.currentTimeMillis() - startTime;
-        if (elapsedTime > 0) {
-            long speed = downloadedBytes / (elapsedTime / 1000);
-            Component speedText = Component.translatable("tipua.gui.download.speed", formatBytes(speed) + "/s");
-            guiGraphics.drawCenteredString(this.font, speedText, centerX, centerY + 35, 0xAAAAAA);
-            
-            long remainingBytes = totalBytes - downloadedBytes;
-            if (speed > 0) {
-                long remainingTime = remainingBytes / speed;
-                Component timeText = Component.translatable("tipua.gui.download.remaining", formatTime(remainingTime));
-                guiGraphics.drawCenteredString(this.font, timeText, centerX, centerY + 50, 0xAAAAAA);
-            }
-        }
     }
     
     private void drawExtractionProgress(GuiGraphics guiGraphics, int centerX, int centerY,
@@ -338,19 +322,6 @@ public class ModpackDownloadScreen extends Screen {
         else if (bytes < 1024 * 1024) return String.format("%.1f KB", bytes / 1024.0);
         else if (bytes < 1024 * 1024 * 1024) return String.format("%.1f MB", bytes / (1024.0 * 1024.0));
         else return String.format("%.1f GB", bytes / (1024.0 * 1024.0 * 1024.0));
-    }
-    
-    private String formatTime(long seconds) {
-        if (seconds < 60) return seconds + "s";
-        else if (seconds < 3600) {
-            long minutes = seconds / 60;
-            long remainingSeconds = seconds % 60;
-            return String.format("%dm %ds", minutes, remainingSeconds);
-        } else {
-            long hours = seconds / 3600;
-            long remainingMinutes = (seconds % 3600) / 60;
-            return String.format("%dh %dm", hours, remainingMinutes);
-        }
     }
     
     @Override

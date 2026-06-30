@@ -140,6 +140,23 @@ public class ClientUpdateManager {
         
         isDownloading = true;
         
+        // 在预下载前先显示下载界面，让用户能看到下载进度
+        final String serverVerForScreen = serverVersion;
+        executeOnMainThread(() -> {
+            Minecraft minecraft = Minecraft.getInstance();
+            if (minecraft != null && minecraft.screen != null) {
+                downloadScreen = new ModpackDownloadScreen(minecraft.screen, serverVerForScreen, () -> {
+                    cancelDownload();
+                }, () -> {
+                    performAutoRollback();
+                });
+                minecraft.setScreen(downloadScreen);
+                if (downloadScreen != null) {
+                    downloadScreen.addLogEntry("info", "正在预下载整合包以获取更新预览... / Pre-downloading modpack for preview...");
+                }
+            }
+        });
+        
         String encodedUrl = encodeUrlWithChinese(downloadUrl);
         try {
             TIPUAMod.LOGGER.info("预下载ZIP以获取manifest / Pre-downloading ZIP to get manifest");
@@ -154,11 +171,21 @@ public class ClientUpdateManager {
                     ClientConfig.getMaxRetryAttempts(),  // 最大重试次数
                     ClientConfig.getRetryDelaySeconds(),  // 重试延迟
                     (downloaded, total, speed) -> {
-                        // 预下载时的进度回调
+                        // 预下载时的进度回调 - 推送到下载界面
+                        executeOnMainThread(() -> {
+                            if (downloadScreen != null) {
+                                downloadScreen.updateDownloadProgress(downloaded, total);
+                            }
+                        });
                     },
                     status -> {
                         // 状态变化回调
                         TIPUAMod.LOGGER.info("下载状态: {} / Download status: {}", status.getChineseStatus(), status.getEnglishStatus());
+                        executeOnMainThread(() -> {
+                            if (downloadScreen != null) {
+                                downloadScreen.addLogEntry("info", "[" + status.getChineseStatus() + " / " + status.getEnglishStatus() + "]");
+                            }
+                        });
                     }
                 );
             
@@ -199,6 +226,7 @@ public class ClientUpdateManager {
         final String finalLocalVersion = localVersion;
         final Path finalTempZip = tempZip;
         
+        // 预下载完成后，关闭下载界面，显示更新预览界面
         executeOnMainThread(() -> {
             Minecraft minecraft = Minecraft.getInstance();
             if (minecraft != null && minecraft.screen != null) {
@@ -224,9 +252,16 @@ public class ClientUpdateManager {
         previousVersion = VersionManager.getLocalVersion();
         TIPUAMod.LOGGER.info("记录更新前的版本: {} / Recording version before update: {}", previousVersion, previousVersion);
         
+        // 由于 ModpackDownloadScreen 已在预下载阶段创建，这里只需将界面切回它即可
         executeOnMainThread(() -> {
             Minecraft minecraft = Minecraft.getInstance();
-            if (minecraft != null && minecraft.screen != null) {
+            if (minecraft != null && downloadScreen != null) {
+                if (downloadScreen != null) {
+                    downloadScreen.addLogEntry("info", "用户已确认更新，开始解压 / User confirmed, starting extraction");
+                }
+                minecraft.setScreen(downloadScreen);
+            } else if (minecraft != null && minecraft.screen != null) {
+                // 兜底：若界面因异常丢失，则重新创建
                 downloadScreen = new ModpackDownloadScreen(minecraft.screen, finalServerVersion, () -> {
                     cancelDownload();
                 }, () -> {
