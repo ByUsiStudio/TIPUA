@@ -4,7 +4,7 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 import miao.byusi.mc.neoforge.tipua.TIPUAMod;
-import miao.byusi.mc.neoforge.tipua.config.Config;
+import miao.byusi.mc.neoforge.tipua.config.ServerConfig;
 import miao.byusi.mc.neoforge.tipua.util.VersionManager;
 
 import java.io.*;
@@ -36,7 +36,7 @@ public class ServerHttpManager {
             return;
         }
 
-        int newPort = Config.SERVER.httpPort.get();
+        int newPort = ServerConfig.getHttpPort();
         
         // 端口变更需要重启服务器
         if (currentPort != newPort) {
@@ -53,7 +53,7 @@ public class ServerHttpManager {
      */
     private static void startHttpServer() {
         try {
-            int port = Config.SERVER.httpPort.get();
+            int port = ServerConfig.getHttpPort();
             currentPort = port;
             httpServer = HttpServer.create(new InetSocketAddress(port), 0);
 
@@ -76,7 +76,7 @@ public class ServerHttpManager {
         @Override
         public void handle(HttpExchange exchange) throws IOException {
             // 直接读取配置中的版本号，支持动态更新
-            String configVersion = Config.SERVER.serverVersion.get();
+            String configVersion = ServerConfig.getServerVersion();
             
             if (!VersionManager.isValidVersion(configVersion)) {
                 TIPUAMod.LOGGER.warn("配置的版本号格式无效: {} / Invalid version format in config: {}", configVersion, configVersion);
@@ -94,7 +94,7 @@ public class ServerHttpManager {
     private static class DownloadUrlHandler implements HttpHandler {
         @Override
         public void handle(HttpExchange exchange) throws IOException {
-            String configuredUrl = Config.SERVER.modpackDownloadUrl.get();
+            String configuredUrl = ServerConfig.getModpackDownloadUrl();
             
             if (configuredUrl == null || configuredUrl.isEmpty()) {
                 TIPUAMod.LOGGER.warn("未配置整合包直链下载地址 / Modpack direct download URL not configured");

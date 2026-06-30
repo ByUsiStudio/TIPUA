@@ -2,7 +2,10 @@ package miao.byusi.mc.neoforge.tipua.client;
 
 import miao.byusi.mc.neoforge.tipua.TIPUAMod;
 import miao.byusi.mc.neoforge.tipua.client.gui.ModpackDownloadScreen;
-import miao.byusi.mc.neoforge.tipua.config.Config;
+import miao.byusi.mc.neoforge.tipua.client.gui.UpdatePreviewScreen;
+import miao.byusi.mc.neoforge.tipua.config.ClientConfig;
+import miao.byusi.mc.neoforge.tipua.util.ModpackManifest;
+import miao.byusi.mc.neoforge.tipua.util.RollbackManager;
 import miao.byusi.mc.neoforge.tipua.util.VersionManager;
 import miao.byusi.mc.neoforge.tipua.util.ZipHandler;
 import net.minecraft.client.Minecraft;
@@ -28,6 +31,8 @@ public class ClientUpdateManager {
     private static boolean hasCheckedUpdate = false;
     private static volatile ModpackDownloadScreen downloadScreen;
     private static volatile boolean isDownloading = false;
+    private static String pendingDownloadUrl;
+    private static String pendingServerVersion;
 
     public static void checkUpdateOnMainMenu() {
         if (hasCheckedUpdate) {
@@ -41,7 +46,7 @@ public class ClientUpdateManager {
             return;
         }
 
-        if (!Config.CLIENT.autoUpdate.get()) {
+        if (!ClientConfig.isAutoUpdate()) {
             TIPUAMod.LOGGER.info("自动更新已禁用 / Auto update disabled");
             return;
         }
@@ -70,8 +75,8 @@ public class ClientUpdateManager {
     }
 
     private static void doUpdateCheck() {
-        String serverAddress = Config.CLIENT.serverAddress.get();
-        int serverPort = Config.CLIENT.httpPort.get();
+        String serverAddress = ClientConfig.getServerAddress();
+        int serverPort = ClientConfig.getHttpPort();
         String serverUrl = "http://" + serverAddress + ":" + serverPort;
 
         TIPUAMod.LOGGER.info("开始检查更新: {} / Checking updates: {}", serverUrl, serverUrl);
@@ -88,7 +93,7 @@ public class ClientUpdateManager {
         
         if (comparison <= 0) {
             TIPUAMod.LOGGER.info("版本一致或更新，无需更新 / Version match or newer, no update needed. Local: {}, Server: {}", localVersion, serverVersion);
-            if (Config.CLIENT.showUpdateNotification.get()) {
+            if (ClientConfig.isShowUpdateNotification()) {
                 showToast("已是最新 / Up to date", "整合包已是最新版本 / Modpack is up to date");
             }
             return;
@@ -97,12 +102,73 @@ public class ClientUpdateManager {
         TIPUAMod.LOGGER.info("需要更新，本地版本: {}, 服务器版本: {} / Update needed, local: {}, server: {}",
                 localVersion, serverVersion, localVersion, serverVersion);
 
-        if (Config.CLIENT.showUpdateNotification.get()) {
+        if (ClientConfig.isShowUpdateNotification()) {
             showToast("发现新版本 / Update available", "新版本: " + serverVersion);
         }
 
+        pendingServerVersion = serverVersion;
+        
+        String downloadUrl = null;
+        String clientUrl = ClientConfig.getModpackDownloadUrl();
+        
+        if (clientUrl != null && !clientUrl.isEmpty()) {
+            downloadUrl = clientUrl;
+            TIPUAMod.LOGGER.info("使用客户端配置的下载地址 / Using client-configured download URL");
+        } else {
+            downloadUrl = fetchDownloadUrl(serverUrl);
+            if (downloadUrl == null || downloadUrl.isEmpty()) {
+                TIPUAMod.LOGGER.error("无法获取下载地址 / Failed to get download URL");
+                showToast("更新失败 / Update failed", "无法获取下载地址 / Failed to get download URL");
+                return;
+            }
+            TIPUAMod.LOGGER.info("从服务端获取下载地址: {} / Download URL from server: {}", downloadUrl, downloadUrl);
+        }
+        
+        pendingDownloadUrl = downloadUrl;
+        
+        Path tempZip = FMLPaths.GAMEDIR.get().resolve(".tipua_temp_download.zip");
+        if (Files.exists(tempZip)) {
+            try {
+                Files.delete(tempZip);
+            } catch (IOException e) {
+                TIPUAMod.LOGGER.warn("清理临时文件失败 / Failed to clean temp file", e);
+            }
+        }
+        
+        String encodedUrl = encodeUrlWithChinese(downloadUrl);
+        try {
+            TIPUAMod.LOGGER.info("预下载ZIP以获取manifest / Pre-downloading ZIP to get manifest");
+            tempZip = downloadZipWithResume(new URL(encodedUrl), serverVersion);
+        } catch (Exception e) {
+            TIPUAMod.LOGGER.error("预下载失败 / Pre-download failed", e);
+            showToast("更新失败 / Update failed", "下载整合包失败 / Failed to download modpack");
+            return;
+        }
+        
+        ModpackManifest manifest = ModpackManifest.fromZip(tempZip.toFile());
+        
+        final String finalLocalVersion = localVersion;
+        final Path finalTempZip = tempZip;
+        
+        executeOnMainThread(() -> {
+            Minecraft minecraft = Minecraft.getInstance();
+            if (minecraft != null && minecraft.screen != null) {
+                UpdatePreviewScreen previewScreen = new UpdatePreviewScreen(
+                        minecraft.screen, 
+                        serverVersion, 
+                        finalLocalVersion, 
+                        manifest,
+                        () -> startDownload(finalTempZip),
+                        () -> cancelUpdate(finalTempZip)
+                );
+                minecraft.setScreen(previewScreen);
+            }
+        });
+    }
+    
+    private static void startDownload(Path tempZip) {
         isDownloading = true;
-        final String finalServerVersion = serverVersion;
+        final String finalServerVersion = pendingServerVersion;
         
         executeOnMainThread(() -> {
             Minecraft minecraft = Minecraft.getInstance();
@@ -113,61 +179,13 @@ public class ClientUpdateManager {
                 minecraft.setScreen(downloadScreen);
             }
         });
-
-        String downloadUrl = null;
-        String clientUrl = Config.CLIENT.modpackDownloadUrl.get();
         
-        if (clientUrl != null && !clientUrl.isEmpty()) {
-            downloadUrl = clientUrl;
-            TIPUAMod.LOGGER.info("使用客户端配置的下载地址 / Using client-configured download URL");
-        } else {
-            downloadUrl = fetchDownloadUrl(serverUrl);
-            if (downloadUrl == null || downloadUrl.isEmpty()) {
-                TIPUAMod.LOGGER.error("无法获取下载地址 / Failed to get download URL");
-                showToast("更新失败 / Update failed", "无法获取下载地址 / Failed to get download URL");
-                executeOnMainThread(() -> {
-                    if (downloadScreen != null) {
-                        downloadScreen.setError("无法获取下载地址");
-                    }
-                });
-                isDownloading = false;
-                return;
-            }
-            TIPUAMod.LOGGER.info("从服务端获取下载地址: {} / Download URL from server: {}", downloadUrl, downloadUrl);
-        }
-        
-        Path downloadedZip = null;
-        try {
-            String encodedUrl = encodeUrlWithChinese(downloadUrl);
-            TIPUAMod.LOGGER.info("编码后的下载地址: {} / Encoded download URL: {}", encodedUrl, encodedUrl);
-            downloadedZip = downloadZipWithResume(new URL(encodedUrl), finalServerVersion);
-        } catch (Exception e) {
-            TIPUAMod.LOGGER.error("下载过程异常 / Download process exception", e);
-            executeOnMainThread(() -> {
-                if (downloadScreen != null) {
-                    downloadScreen.setError("下载异常: " + e.getMessage());
-                }
-            });
-            isDownloading = false;
-            return;
-        }
-
-        if (downloadedZip == null || !Files.exists(downloadedZip)) {
-            TIPUAMod.LOGGER.error("下载失败 / Download failed");
-            showToast("更新失败 / Update failed", "下载整合包失败 / Failed to download modpack");
-            executeOnMainThread(() -> {
-                if (downloadScreen != null) {
-                    downloadScreen.setError("下载失败");
-                }
-            });
-            isDownloading = false;
-            return;
-        }
-
-        if (Config.CLIENT.autoExtract.get()) {
+        if (ClientConfig.isAutoExtract()) {
             TIPUAMod.LOGGER.info("开始解压ZIP / Extracting ZIP");
             
-            boolean extractionSuccess = ZipHandler.extractZip(downloadedZip.toFile(), new ZipHandler.ExtractionProgressCallback() {
+            RollbackManager.backupBeforeUpdate(FMLPaths.GAMEDIR.get(), finalServerVersion);
+            
+            boolean extractionSuccess = ZipHandler.extractZip(tempZip.toFile(), new ZipHandler.ExtractionProgressCallback() {
                 @Override
                 public void onFileExtracting(String relativePath, long current, long total) {
                     executeOnMainThread(() -> {
@@ -208,7 +226,7 @@ public class ClientUpdateManager {
         VersionManager.saveLocalVersion(finalServerVersion);
 
         try {
-            Files.delete(downloadedZip);
+            Files.delete(tempZip);
         } catch (IOException e) {
             TIPUAMod.LOGGER.warn("清理ZIP文件失败 / Failed to clean ZIP file", e);
         }
@@ -224,6 +242,17 @@ public class ClientUpdateManager {
         showToast("更新完成 / Update completed", "请重启游戏以使更改生效 / Please restart to apply changes");
         TIPUAMod.LOGGER.info("更新完成 / Update completed");
     }
+    
+    private static void cancelUpdate(Path tempZip) {
+        try {
+            if (tempZip != null && Files.exists(tempZip)) {
+                Files.delete(tempZip);
+            }
+        } catch (IOException e) {
+            TIPUAMod.LOGGER.warn("清理临时文件失败 / Failed to clean temp file", e);
+        }
+        TIPUAMod.LOGGER.info("更新已取消 / Update cancelled");
+    }
 
     /**
      * 支持断点续传的下载方法
@@ -238,8 +267,8 @@ public class ClientUpdateManager {
         }
 
         HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-        connection.setConnectTimeout(Config.CLIENT.downloadTimeoutSeconds.get() * 1000);
-        connection.setReadTimeout(Config.CLIENT.downloadTimeoutSeconds.get() * 1000);
+        connection.setConnectTimeout(ClientConfig.getDownloadTimeoutSeconds() * 1000);
+        connection.setReadTimeout(ClientConfig.getDownloadTimeoutSeconds() * 1000);
         connection.setRequestProperty("User-Agent", "TIPUA/1.0.0");
 
         if (existingBytes > 0) {
@@ -257,6 +286,7 @@ public class ClientUpdateManager {
                 connection.disconnect();
                 return downloadZipWithResume(url, version);
             }
+            handleDownloadError("下载失败: HTTP " + responseCode);
             throw new IOException("下载ZIP失败: HTTP " + responseCode + " / Download failed: HTTP " + responseCode);
         }
 
@@ -295,18 +325,36 @@ public class ClientUpdateManager {
                     lastUpdateTime = currentTime;
                 }
                 
-                if (!isDownloading) {
+                if (!isDownloading && updateExecutor != null && !updateExecutor.isShutdown()) {
+                    handleDownloadError("下载已取消 / Download cancelled");
                     throw new IOException("下载已取消 / Download cancelled");
                 }
             }
 
             TIPUAMod.LOGGER.info("ZIP下载完成: {} bytes / ZIP downloaded: {} bytes", totalRead, totalRead);
+        } catch (IOException e) {
+            handleDownloadError(e.getMessage());
+            throw e;
         } finally {
             os.close();
             connection.disconnect();
         }
 
         return tempZip;
+    }
+    
+    /**
+     * 处理下载错误 - 显示错误并显示退出按钮
+     */
+    private static void handleDownloadError(String errorMessage) {
+        isDownloading = false;
+        TIPUAMod.LOGGER.error("下载错误: {} / Download error: {}", errorMessage, errorMessage);
+        executeOnMainThread(() -> {
+            if (downloadScreen != null) {
+                downloadScreen.setError(errorMessage);
+                downloadScreen.showExitButton();
+            }
+        });
     }
 
     private static String fetchServerVersion(String serverUrl) {

@@ -3,7 +3,7 @@ package miao.byusi.mc.neoforge.tipua.server.command;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.tree.LiteralCommandNode;
 import miao.byusi.mc.neoforge.tipua.TIPUAMod;
-import miao.byusi.mc.neoforge.tipua.config.Config;
+import miao.byusi.mc.neoforge.tipua.config.ServerConfig;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
@@ -11,6 +11,7 @@ import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
+import net.neoforged.fml.ModLoadingContext;
 
 /**
  * TIPUA命令注册器
@@ -26,7 +27,7 @@ public class CommandRegistry {
         LiteralCommandNode<CommandSourceStack> tipuaNode = Commands.literal("tipua")
             .executes(context -> {
                 context.getSource().sendSuccess(() -> Component.literal("TIPUA - 整合包自动更新工具"), false);
-                context.getSource().sendSuccess(() -> Component.literal("用法: /tipua <version|url|info|reload>"), false);
+                context.getSource().sendSuccess(() -> Component.literal("用法: /tipua <version|url|info|reload|modinfo>"), false);
                 return 1;
             })
             .build();
@@ -34,7 +35,7 @@ public class CommandRegistry {
         // /tipua version - 显示当前版本
         LiteralCommandNode<CommandSourceStack> versionNode = Commands.literal("version")
             .executes(context -> {
-                String serverVersion = Config.SERVER.serverVersion.get();
+                String serverVersion = ServerConfig.getServerVersion();
                 context.getSource().sendSuccess(() -> Component.literal("TIPUA 当前版本: " + serverVersion), false);
                 return 1;
             })
@@ -43,7 +44,7 @@ public class CommandRegistry {
         // /tipua url - 显示下载地址
         LiteralCommandNode<CommandSourceStack> urlNode = Commands.literal("url")
             .executes(context -> {
-                String url = Config.SERVER.modpackDownloadUrl.get();
+                String url = ServerConfig.getModpackDownloadUrl();
                 if (url == null || url.isEmpty()) {
                     context.getSource().sendSuccess(() -> Component.literal("TIPUA 下载地址: 未配置"), false);
                 } else {
@@ -56,9 +57,9 @@ public class CommandRegistry {
         // /tipua info - 显示服务器信息
         LiteralCommandNode<CommandSourceStack> infoNode = Commands.literal("info")
             .executes(context -> {
-                int port = Config.SERVER.httpPort.get();
-                String serverVersion = Config.SERVER.serverVersion.get();
-                String downloadUrl = Config.SERVER.modpackDownloadUrl.get();
+                int port = ServerConfig.getHttpPort();
+                String serverVersion = ServerConfig.getServerVersion();
+                String downloadUrl = ServerConfig.getModpackDownloadUrl();
                 
                 context.getSource().sendSuccess(() -> Component.literal("=== TIPUA 服务器信息 ==="), false);
                 context.getSource().sendSuccess(() -> Component.literal("HTTP端口: " + port), false);
@@ -80,13 +81,45 @@ public class CommandRegistry {
             })
             .build();
         
+        // /tipua modinfo - 显示模组编译信息
+        LiteralCommandNode<CommandSourceStack> modinfoNode = Commands.literal("modinfo")
+            .executes(context -> {
+                var modInfo = ModLoadingContext.get().getActiveContainer();
+                
+                context.getSource().sendSuccess(() -> Component.literal("=== TIPUA 模组信息 ==="), false);
+                context.getSource().sendSuccess(() -> Component.literal("模组ID: " + TIPUAMod.MOD_ID), false);
+                context.getSource().sendSuccess(() -> Component.literal("模组名称: " + TIPUAMod.MOD_NAME), false);
+                context.getSource().sendSuccess(() -> Component.literal("版本: " + modInfo.getModInfo().getVersion().toString()), false);
+                
+                // 显示开发者信息
+                context.getSource().sendSuccess(() -> Component.literal("开发者: 北 (BeiAne)"), false);
+                context.getSource().sendSuccess(() -> Component.literal("作者: BeiAne"), false);
+                
+                // 显示详细编译信息
+                context.getSource().sendSuccess(() -> Component.literal("--- 编译信息 ---"), false);
+                context.getSource().sendSuccess(() -> Component.literal("Java版本: " + System.getProperty("java.version")), false);
+                context.getSource().sendSuccess(() -> Component.literal("运行环境: 服务端"), false);
+                context.getSource().sendSuccess(() -> Component.literal("构建时间: " + getBuildTimestamp()), false);
+                
+                context.getSource().sendSuccess(() -> Component.literal("--- 链接 ---"), false);
+                context.getSource().sendSuccess(() -> Component.literal("Modrinth: https://modrinth.com/mod/tipua"), false);
+                
+                return 1;
+            })
+            .build();
+        
         // 注册命令树
         dispatcher.getRoot().addChild(tipuaNode);
         tipuaNode.addChild(versionNode);
         tipuaNode.addChild(urlNode);
         tipuaNode.addChild(infoNode);
         tipuaNode.addChild(reloadNode);
+        tipuaNode.addChild(modinfoNode);
         
         TIPUAMod.LOGGER.info("TIPUA命令已注册 / TIPUA commands registered");
+    }
+    
+    private static String getBuildTimestamp() {
+        return "北 (BeiAne)";
     }
 }

@@ -12,9 +12,21 @@
   "tipua.gui.download.update_complete": "更新完成",
   "tipua.gui.download.restart": "退出游戏",
   "tipua.gui.download.restart_hint": "请重启游戏以使更改生效",
+  "tipua.gui.download.exit": "退出",
+  "tipua.gui.download.exit_hint": "点击退出按钮关闭游戏",
+  "tipua.gui.preview.title": "更新预览",
+  "tipua.gui.preview.version_info": "当前版本: %s -> 新版本: %s",
+  "tipua.gui.preview.file_count": "文件数量: %d / %d",
+  "tipua.gui.preview.size": "总大小: %s",
+  "tipua.gui.preview.confirm": "确认更新",
+  "tipua.gui.preview.cancel": "取消",
   "tipua.notification.update.title": "整合包更新可用",
   "tipua.notification.update.message": "新版本: %s",
   "tipua.notification.update.downloading": "正在下载整合包...",
   "tipua.notification.update.complete": "整合包更新完成",
-  "tipua.notification.update.failed": "整合包更新失败"
+  "tipua.notification.update.failed": "整合包更新失败",
+  "tipua.command.rollback.available": "没有可用的回滚备份",
+  "tipua.command.rollback.starting": "开始回滚到版本: %s",
+  "tipua.command.rollback.success": "回滚成功！请重启游戏",
+  "tipua.command.rollback.failed": "回滚失败"
 }

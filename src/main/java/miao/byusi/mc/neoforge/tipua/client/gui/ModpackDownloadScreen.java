@@ -32,8 +32,10 @@ public class ModpackDownloadScreen extends Screen {
     private boolean hasError = false;
     private String errorMessage = "";
     private boolean showRestart = false;
+    private boolean showExit = false;
     
     private Button restartButton;
+    private Button exitButton;
     
     public ModpackDownloadScreen(Screen parent, String version, Runnable onCancel) {
         super(TITLE);
@@ -57,8 +59,17 @@ public class ModpackDownloadScreen extends Screen {
                 }
         ).bounds(centerX - 100, centerY + 50, 200, 25).build();
         
+        exitButton = Button.builder(
+                Component.translatable("tipua.gui.download.exit"),
+                button -> {
+                    this.minecraft.stop();
+                }
+        ).bounds(centerX - 75, centerY + 50, 150, 25).build();
+        
         this.addRenderableWidget(restartButton);
+        this.addRenderableWidget(exitButton);
         restartButton.visible = false;
+        exitButton.visible = false;
     }
     
     @Override
@@ -145,12 +156,12 @@ public class ModpackDownloadScreen extends Screen {
         if (hasError) {
             Component errorText = Component.literal(errorMessage).withStyle(ChatFormatting.RED);
             guiGraphics.drawCenteredString(this.font, errorText, centerX, centerY + 40, 0xFF5555);
-            
-            Button backButton = Button.builder(
-                    Component.translatable("gui.back"),
-                    button -> this.minecraft.setScreen(this.parent)
-            ).bounds(centerX - 50, centerY + 70, 100, 20).build();
-            backButton.render(guiGraphics, mouseX, mouseY, partialTick);
+        }
+        
+        if (showExit) {
+            exitButton.visible = true;
+            Component exitHint = Component.translatable("tipua.gui.download.exit_hint");
+            guiGraphics.drawCenteredString(this.font, exitHint, centerX, centerY + 85, 0xAAAAAA);
         }
         
         if (showRestart) {
@@ -197,6 +208,10 @@ public class ModpackDownloadScreen extends Screen {
         this.hasError = true;
         this.errorMessage = errorMessage;
         this.status = Component.translatable("tipua.gui.download.error").getString();
+    }
+    
+    public void showExitButton() {
+        this.showExit = true;
     }
     
     private String formatBytes(long bytes) {

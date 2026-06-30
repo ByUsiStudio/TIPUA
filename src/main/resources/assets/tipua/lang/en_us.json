@@ -12,9 +12,21 @@
   "tipua.gui.download.update_complete": "Update complete",
   "tipua.gui.download.restart": "Quit Game",
   "tipua.gui.download.restart_hint": "Please restart to apply changes",
+  "tipua.gui.download.exit": "Exit",
+  "tipua.gui.download.exit_hint": "Click exit button to close the game",
+  "tipua.gui.preview.title": "Update Preview",
+  "tipua.gui.preview.version_info": "Current: %s -> New: %s",
+  "tipua.gui.preview.file_count": "Files: %d / %d",
+  "tipua.gui.preview.size": "Total size: %s",
+  "tipua.gui.preview.confirm": "Confirm Update",
+  "tipua.gui.preview.cancel": "Cancel",
   "tipua.notification.update.title": "Modpack Update Available",
   "tipua.notification.update.message": "New version: %s",
   "tipua.notification.update.downloading": "Downloading modpack...",
   "tipua.notification.update.complete": "Modpack update complete",
-  "tipua.notification.update.failed": "Modpack update failed"
+  "tipua.notification.update.failed": "Modpack update failed",
+  "tipua.command.rollback.available": "No rollback backup available",
+  "tipua.command.rollback.starting": "Rolling back to version: %s",
+  "tipua.command.rollback.success": "Rollback successful! Please restart the game",
+  "tipua.command.rollback.failed": "Rollback failed"
 }
