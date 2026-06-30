@@ -20,6 +20,13 @@ public class ModpackDownloadScreen extends Screen {
     private long downloadedBytes = 0;
     private long totalBytes = 0;
     private String status = Component.translatable("tipua.gui.download.starting").getString();
+
+    private static final int SPEED_SAMPLE_WINDOW_MS = 3000;
+    private static final int MAX_SAMPLES = 10;
+    private final long[] sampleTimes = new long[MAX_SAMPLES];
+    private final long[] sampleBytes = new long[MAX_SAMPLES];
+    private int sampleCount = 0;
+    private int sampleHead = 0;
     
     private long extractionCurrent = 0;
     private long extractionTotal = 0;
@@ -172,6 +179,41 @@ public class ModpackDownloadScreen extends Screen {
         String totalStr = formatBytes(totalBytes);
         Component sizeText = Component.literal(downloadedStr + " / " + totalStr);
         guiGraphics.drawCenteredString(this.font, sizeText, centerX, centerY + 20, 0xAAAAAA);
+
+        long avgSpeed = calculateAverageSpeed(System.currentTimeMillis());
+        if (avgSpeed > 0) {
+            Component speedText = Component.translatable("tipua.gui.download.speed", formatBytes(avgSpeed) + "/s");
+            guiGraphics.drawCenteredString(this.font, speedText, centerX, centerY + 35, 0xAAAAAA);
+        }
+    }
+
+    /**
+     * 计算最近 SPEED_SAMPLE_WINDOW_MS 毫秒窗口内的平均下载速度（字节/秒）
+     * 找不到合适样本时返回 0，调用方决定是否显示
+     */
+    private long calculateAverageSpeed(long now) {
+        if (sampleCount == 0) {
+            return 0;
+        }
+        // 在环形缓冲区中寻找最早仍在窗口内的样本
+        int oldestIdx = -1;
+        for (int i = 0; i < sampleCount; i++) {
+            int idx = (sampleHead - sampleCount + i + MAX_SAMPLES) % MAX_SAMPLES;
+            if (now - sampleTimes[idx] <= SPEED_SAMPLE_WINDOW_MS) {
+                oldestIdx = idx;
+                break;
+            }
+        }
+        if (oldestIdx == -1) {
+            // 所有样本都超出窗口，使用最早一个（窗口外最接近的）作为基线
+            oldestIdx = (sampleHead - sampleCount + MAX_SAMPLES) % MAX_SAMPLES;
+        }
+        long timeDelta = now - sampleTimes[oldestIdx];
+        long bytesDelta = downloadedBytes - sampleBytes[oldestIdx];
+        if (timeDelta <= 0 || bytesDelta <= 0) {
+            return 0;
+        }
+        return bytesDelta * 1000L / timeDelta;
     }
     
     private void drawExtractionProgress(GuiGraphics guiGraphics, int centerX, int centerY,
@@ -261,6 +303,13 @@ public class ModpackDownloadScreen extends Screen {
         this.extractionCurrent = 0;
         this.extractionTotal = 0;
         this.status = Component.translatable("tipua.gui.download.downloading").getString();
+        long now = System.currentTimeMillis();
+        sampleTimes[sampleHead] = now;
+        sampleBytes[sampleHead] = downloadedBytes;
+        sampleHead = (sampleHead + 1) % MAX_SAMPLES;
+        if (sampleCount < MAX_SAMPLES) {
+            sampleCount++;
+        }
     }
     
     public void updateExtractionProgress(String relativePath, long current, long total) {

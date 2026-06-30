@@ -7,6 +7,7 @@
   "tipua.gui.download.single_thread": "Downloading (single thread)...",
   "tipua.gui.download.complete": "Update complete!",
   "tipua.gui.download.error": "Download failed",
+  "tipua.gui.download.speed": "Speed: %s",
   "tipua.gui.download.extracting": "Extracting...",
   "tipua.gui.download.extract_complete": "Extraction complete",
   "tipua.gui.download.update_complete": "Update complete",
