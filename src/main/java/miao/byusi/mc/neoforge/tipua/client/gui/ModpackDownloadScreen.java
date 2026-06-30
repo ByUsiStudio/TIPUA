@@ -6,12 +6,10 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
-import net.minecraft.util.Mth;
 
-/**
- * 整合包下载进度界面
- * Modpack download progress screen
- */
+import java.util.ArrayList;
+import java.util.List;
+
 public class ModpackDownloadScreen extends Screen {
     private static final Component TITLE = Component.translatable("tipua.gui.download.title").withStyle(ChatFormatting.BOLD);
     
@@ -36,12 +34,20 @@ public class ModpackDownloadScreen extends Screen {
     
     private Button restartButton;
     private Button exitButton;
+    private Button rollbackButton;
     
-    public ModpackDownloadScreen(Screen parent, String version, Runnable onCancel) {
+    private final List<String> logEntries = new ArrayList<>();
+    private float logScrollOffset = 0;
+    private static final int MAX_LOG_LINES = 200;
+    
+    private final Runnable onRollback;  // 回滚回调
+    
+    public ModpackDownloadScreen(Screen parent, String version, Runnable onCancel, Runnable onRollback) {
         super(TITLE);
         this.parent = parent;
         this.version = version;
         this.onCancel = onCancel;
+        this.onRollback = onRollback;
         this.startTime = System.currentTimeMillis();
     }
     
@@ -66,10 +72,23 @@ public class ModpackDownloadScreen extends Screen {
                 }
         ).bounds(centerX - 75, centerY + 50, 150, 25).build();
         
+        rollbackButton = Button.builder(
+                Component.translatable("tipua.rollback.auto"),
+                button -> {
+                    if (onRollback != null) {
+                        onRollback.run();
+                    }
+                }
+        ).bounds(centerX - 100, centerY + 80, 200, 25).build();
+        
         this.addRenderableWidget(restartButton);
         this.addRenderableWidget(exitButton);
+        this.addRenderableWidget(rollbackButton);
         restartButton.visible = false;
         exitButton.visible = false;
+        rollbackButton.visible = false;
+        
+        addLogEntry("info", "[系统] TIPUA 更新管理器已启动");
     }
     
     @Override
@@ -84,98 +103,172 @@ public class ModpackDownloadScreen extends Screen {
         int centerX = this.width / 2;
         int centerY = this.height / 2;
         
-        guiGraphics.drawCenteredString(this.font, TITLE, centerX, centerY - 80, 0xFFFFFF);
+        guiGraphics.drawCenteredString(this.font, TITLE, centerX, centerY - 100, 0xFFFFFF);
         
         Component versionText = Component.translatable("tipua.gui.download.version", this.version);
-        guiGraphics.drawCenteredString(this.font, versionText, centerX, centerY - 60, 0xAAAAAA);
+        guiGraphics.drawCenteredString(this.font, versionText, centerX, centerY - 80, 0xAAAAAA);
         
-        guiGraphics.drawCenteredString(this.font, Component.literal(this.status), centerX, centerY - 35, 0xFFFFFF);
+        guiGraphics.drawCenteredString(this.font, Component.literal(this.status), centerX, centerY - 55, 0xFFFFFF);
         
         int progressBarWidth = 400;
         int progressBarHeight = 20;
         int progressBarX = centerX - progressBarWidth / 2;
-        int progressBarY = centerY - 5;
+        int progressBarY = centerY - 30;
         
         guiGraphics.fill(progressBarX, progressBarY, progressBarX + progressBarWidth, progressBarY + progressBarHeight, 0xFF202020);
         
-        // 手动绘制边框
         int borderColor = 0xFF606060;
-        guiGraphics.fill(progressBarX, progressBarY, progressBarX + progressBarWidth, progressBarY + 1, borderColor); // 上边
-        guiGraphics.fill(progressBarX, progressBarY + progressBarHeight - 1, progressBarX + progressBarWidth, progressBarY + progressBarHeight, borderColor); // 下边
-        guiGraphics.fill(progressBarX, progressBarY, progressBarX + 1, progressBarY + progressBarHeight, borderColor); // 左边
-        guiGraphics.fill(progressBarX + progressBarWidth - 1, progressBarY, progressBarX + progressBarWidth, progressBarY + progressBarHeight, borderColor); // 右边
+        guiGraphics.fill(progressBarX, progressBarY, progressBarX + progressBarWidth, progressBarY + 1, borderColor);
+        guiGraphics.fill(progressBarX, progressBarY + progressBarHeight - 1, progressBarX + progressBarWidth, progressBarY + progressBarHeight, borderColor);
+        guiGraphics.fill(progressBarX, progressBarY, progressBarX + 1, progressBarY + progressBarHeight, borderColor);
+        guiGraphics.fill(progressBarX + progressBarWidth - 1, progressBarY, progressBarX + progressBarWidth, progressBarY + progressBarHeight, borderColor);
         
         if (totalBytes > 0) {
-            double progress = (double) downloadedBytes / totalBytes;
-            int progressWidth = (int) (progress * progressBarWidth);
-            int progressColor = 0xFF55FF55;
-            if (progress < 0.3) progressColor = 0xFFFF5555;
-            else if (progress < 0.7) progressColor = 0xFFFFFF55;
-            
-            guiGraphics.fill(progressBarX, progressBarY, progressBarX + progressWidth, progressBarY + progressBarHeight, progressColor);
-            
-            int percentage = (int) (progress * 100);
-            Component percentageText = Component.literal(percentage + "%");
-            guiGraphics.drawCenteredString(this.font, percentageText, centerX, centerY + 25, 0xFFFFFF);
-            
-            String downloadedStr = formatBytes(downloadedBytes);
-            String totalStr = formatBytes(totalBytes);
-            Component sizeText = Component.literal(downloadedStr + " / " + totalStr);
-            guiGraphics.drawCenteredString(this.font, sizeText, centerX, centerY + 40, 0xAAAAAA);
-            
-            long elapsedTime = System.currentTimeMillis() - startTime;
-            if (elapsedTime > 0) {
-                long speed = downloadedBytes / (elapsedTime / 1000);
-                Component speedText = Component.translatable("tipua.gui.download.speed", formatBytes(speed) + "/s");
-                guiGraphics.drawCenteredString(this.font, speedText, centerX, centerY + 55, 0xAAAAAA);
-                
-                long remainingBytes = totalBytes - downloadedBytes;
-                if (speed > 0) {
-                    long remainingTime = remainingBytes / speed;
-                    Component timeText = Component.translatable("tipua.gui.download.remaining", formatTime(remainingTime));
-                    guiGraphics.drawCenteredString(this.font, timeText, centerX, centerY + 70, 0xAAAAAA);
-                }
-            }
+            drawDownloadProgress(guiGraphics, centerX, centerY, progressBarX, progressBarY, progressBarWidth, progressBarHeight);
         } else if (extractionTotal > 0) {
-            double progress = (double) extractionCurrent / extractionTotal;
-            int progressWidth = (int) (progress * progressBarWidth);
-            int progressColor = 0xFF55AAFF;
-            guiGraphics.fill(progressBarX, progressBarY, progressBarX + progressWidth, progressBarY + progressBarHeight, progressColor);
-            
-            int percentage = (int) (progress * 100);
-            Component percentageText = Component.literal(percentage + "%");
-            guiGraphics.drawCenteredString(this.font, percentageText, centerX, centerY + 25, 0xFFFFFF);
-            
-            Component fileText = Component.literal(extractingFile);
-            guiGraphics.drawCenteredString(this.font, fileText, centerX, centerY + 40, 0xAAAAAA);
-            
-            Component countText = Component.literal(extractionCurrent + " / " + extractionTotal);
-            guiGraphics.drawCenteredString(this.font, countText, centerX, centerY + 55, 0xAAAAAA);
+            drawExtractionProgress(guiGraphics, centerX, centerY, progressBarX, progressBarY, progressBarWidth, progressBarHeight);
         }
+        
+        drawLogArea(guiGraphics, centerX, centerY);
         
         if (hasError) {
             Component errorText = Component.literal(errorMessage).withStyle(ChatFormatting.RED);
-            guiGraphics.drawCenteredString(this.font, errorText, centerX, centerY + 40, 0xFF5555);
+            guiGraphics.drawCenteredString(this.font, errorText, centerX, centerY + 80, 0xFF5555);
         }
         
         if (showExit) {
             exitButton.visible = true;
             Component exitHint = Component.translatable("tipua.gui.download.exit_hint");
-            guiGraphics.drawCenteredString(this.font, exitHint, centerX, centerY + 85, 0xAAAAAA);
+            guiGraphics.drawCenteredString(this.font, exitHint, centerX, centerY + 105, 0xAAAAAA);
         }
         
         if (showRestart) {
             restartButton.visible = true;
             Component completeText = Component.translatable("tipua.gui.download.complete").withStyle(ChatFormatting.GREEN);
-            guiGraphics.drawCenteredString(this.font, completeText, centerX, centerY + 25, 0x55FF55);
+            guiGraphics.drawCenteredString(this.font, completeText, centerX, centerY + 80, 0x55FF55);
             
             Component restartHint = Component.translatable("tipua.gui.download.restart_hint");
-            guiGraphics.drawCenteredString(this.font, restartHint, centerX, centerY + 85, 0xAAAAAA);
+            guiGraphics.drawCenteredString(this.font, restartHint, centerX, centerY + 105, 0xAAAAAA);
         } else {
             restartButton.visible = false;
         }
         
         this.renderables.forEach(widget -> widget.render(guiGraphics, mouseX, mouseY, partialTick));
+    }
+    
+    private void drawDownloadProgress(GuiGraphics guiGraphics, int centerX, int centerY, 
+            int progressBarX, int progressBarY, int progressBarWidth, int progressBarHeight) {
+        double progress = (double) downloadedBytes / totalBytes;
+        int progressWidth = (int) (progress * progressBarWidth);
+        int progressColor = 0xFF55FF55;
+        if (progress < 0.3) progressColor = 0xFFFF5555;
+        else if (progress < 0.7) progressColor = 0xFFFFFF55;
+        
+        guiGraphics.fill(progressBarX, progressBarY, progressBarX + progressWidth, progressBarY + progressBarHeight, progressColor);
+        
+        int percentage = (int) (progress * 100);
+        Component percentageText = Component.literal(percentage + "%");
+        guiGraphics.drawCenteredString(this.font, percentageText, centerX, centerY + 5, 0xFFFFFF);
+        
+        String downloadedStr = formatBytes(downloadedBytes);
+        String totalStr = formatBytes(totalBytes);
+        Component sizeText = Component.literal(downloadedStr + " / " + totalStr);
+        guiGraphics.drawCenteredString(this.font, sizeText, centerX, centerY + 20, 0xAAAAAA);
+        
+        long elapsedTime = System.currentTimeMillis() - startTime;
+        if (elapsedTime > 0) {
+            long speed = downloadedBytes / (elapsedTime / 1000);
+            Component speedText = Component.translatable("tipua.gui.download.speed", formatBytes(speed) + "/s");
+            guiGraphics.drawCenteredString(this.font, speedText, centerX, centerY + 35, 0xAAAAAA);
+            
+            long remainingBytes = totalBytes - downloadedBytes;
+            if (speed > 0) {
+                long remainingTime = remainingBytes / speed;
+                Component timeText = Component.translatable("tipua.gui.download.remaining", formatTime(remainingTime));
+                guiGraphics.drawCenteredString(this.font, timeText, centerX, centerY + 50, 0xAAAAAA);
+            }
+        }
+    }
+    
+    private void drawExtractionProgress(GuiGraphics guiGraphics, int centerX, int centerY,
+            int progressBarX, int progressBarY, int progressBarWidth, int progressBarHeight) {
+        double progress = (double) extractionCurrent / extractionTotal;
+        int progressWidth = (int) (progress * progressBarWidth);
+        int progressColor = 0xFF55AAFF;
+        guiGraphics.fill(progressBarX, progressBarY, progressBarX + progressWidth, progressBarY + progressBarHeight, progressColor);
+        
+        int percentage = (int) (progress * 100);
+        Component percentageText = Component.literal(percentage + "%");
+        guiGraphics.drawCenteredString(this.font, percentageText, centerX, centerY + 5, 0xFFFFFF);
+        
+        Component countText = Component.literal(extractionCurrent + " / " + extractionTotal + " 文件");
+        guiGraphics.drawCenteredString(this.font, countText, centerX, centerY + 20, 0xAAAAAA);
+    }
+    
+    private void drawLogArea(GuiGraphics guiGraphics, int centerX, int centerY) {
+        int logWidth = 500;
+        int logHeight = 120;
+        int logX = centerX - logWidth / 2;
+        int logY = centerY + 70;
+        
+        guiGraphics.fill(logX, logY, logX + logWidth, logY + logHeight, 0xFF1A1A1A);
+        
+        int borderColor = 0xFF404040;
+        guiGraphics.fill(logX, logY, logX + logWidth, logY + 1, borderColor);
+        guiGraphics.fill(logX, logY + logHeight - 1, logX + logWidth, logY + logHeight, borderColor);
+        guiGraphics.fill(logX, logY, logX + 1, logY + logHeight, borderColor);
+        guiGraphics.fill(logX + logWidth - 1, logY, logX + logWidth, logY + logHeight, borderColor);
+        
+        Component logTitle = Component.literal("[ 操作日志 ]").withStyle(ChatFormatting.GRAY);
+        guiGraphics.drawString(this.font, logTitle, logX + 5, logY + 2, 0xAAAAAA);
+        
+        int lineHeight = 10;
+        int visibleLines = (logHeight - 15) / lineHeight;
+        int totalLines = logEntries.size();
+        
+        if (totalLines > visibleLines) {
+            while (logScrollOffset > totalLines - visibleLines) {
+                logScrollOffset = totalLines - visibleLines;
+            }
+            while (logScrollOffset < 0) {
+                logScrollOffset = 0;
+            }
+        } else {
+            logScrollOffset = 0;
+        }
+        
+        int startLine = (int) logScrollOffset;
+        for (int i = 0; i < visibleLines && startLine + i < totalLines; i++) {
+            String entry = logEntries.get(startLine + i);
+            int y = logY + 15 + i * lineHeight;
+            int color = 0x888888;
+            
+            if (entry.startsWith("[INFO]")) color = 0x55FF55;
+            else if (entry.startsWith("[WARN]")) color = 0xFFFF55;
+            else if (entry.startsWith("[ERROR]")) color = 0xFF5555;
+            else if (entry.startsWith("[解压]")) color = 0x55AAFF;
+            
+            guiGraphics.drawString(this.font, entry, logX + 5, y, color);
+        }
+    }
+    
+    public void addLogEntry(String type, String message) {
+        String timestamp = java.time.LocalTime.now().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss"));
+        String prefix = switch (type.toLowerCase()) {
+            case "info" -> "[INFO]";
+            case "warn" -> "[WARN]";
+            case "error" -> "[ERROR]";
+            case "extract" -> "[解压]";
+            default -> "[INFO]";
+        };
+        
+        logEntries.add(timestamp + " " + prefix + " " + message);
+        
+        if (logEntries.size() > MAX_LOG_LINES) {
+            logEntries.remove(0);
+        }
+        
+        logScrollOffset = logEntries.size();
     }
     
     public void updateDownloadProgress(long downloadedBytes, long totalBytes) {
@@ -193,25 +286,51 @@ public class ModpackDownloadScreen extends Screen {
         this.downloadedBytes = 0;
         this.totalBytes = 0;
         this.status = Component.translatable("tipua.gui.download.extracting").getString();
+        
+        addLogEntry("extract", relativePath);
     }
     
     public void setExtractionComplete() {
         this.status = Component.translatable("tipua.gui.download.extract_complete").getString();
+        addLogEntry("info", "解压完成");
     }
     
     public void showRestartButton() {
         this.showRestart = true;
         this.status = Component.translatable("tipua.gui.download.update_complete").getString();
+        addLogEntry("info", "更新完成，请重启游戏");
     }
     
     public void setError(String errorMessage) {
         this.hasError = true;
         this.errorMessage = errorMessage;
         this.status = Component.translatable("tipua.gui.download.error").getString();
+        addLogEntry("error", errorMessage);
     }
     
     public void showExitButton() {
         this.showExit = true;
+    }
+    
+    public void showRollbackButton() {
+        this.rollbackButton.visible = true;
+        addLogEntry("info", "显示回滚按钮");
+    }
+    
+    @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double deltaX, double deltaY) {
+        int centerX = this.width / 2;
+        int centerY = this.height / 2;
+        int logWidth = 500;
+        int logHeight = 120;
+        int logX = centerX - logWidth / 2;
+        int logY = centerY + 70;
+        
+        if (mouseX >= logX && mouseX <= logX + logWidth && mouseY >= logY && mouseY <= logY + logHeight) {
+            logScrollOffset -= deltaY * 3;
+            return true;
+        }
+        return super.mouseScrolled(mouseX, mouseY, deltaX, deltaY);
     }
     
     private String formatBytes(long bytes) {

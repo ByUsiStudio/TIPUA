@@ -25,6 +25,11 @@ public class ClientConfig {
     private static ModConfigSpec.IntValue downloadTimeoutSecondsValue;
     private static ModConfigSpec.BooleanValue showUpdateNotificationValue;
     private static ModConfigSpec.ConfigValue<String> modpackDownloadUrlValue;
+    private static ModConfigSpec.IntValue maxRetryAttemptsValue;
+    private static ModConfigSpec.IntValue retryDelaySecondsValue;
+    private static ModConfigSpec.BooleanValue autoRollbackValue;
+    private static ModConfigSpec.ConfigValue<String> scheduledUpdateTimeValue;
+    private static ModConfigSpec.BooleanValue autoUpdateOnScheduleValue;
     
     private static final ModConfigSpec SPEC;
     
@@ -58,6 +63,26 @@ public class ClientConfig {
         modpackDownloadUrlValue = BUILDER
                 .comment("整合包下载地址（高级选项）")
                 .define("modpackDownloadUrl", "");
+        
+        maxRetryAttemptsValue = BUILDER
+                .comment("下载失败时的最大重试次数")
+                .defineInRange("maxRetryAttempts", 3, 0, 10);
+        
+        retryDelaySecondsValue = BUILDER
+                .comment("重试之间的延迟时间（秒）")
+                .defineInRange("retryDelaySeconds", 5, 1, 60);
+        
+        autoRollbackValue = BUILDER
+                .comment("更新失败时自动回滚到之前版本")
+                .define("autoRollback", true);
+        
+        scheduledUpdateTimeValue = BUILDER
+                .comment("定时更新时间（HH:mm格式，如 14:30），留空则禁用定时更新")
+                .define("scheduledUpdateTime", "");
+        
+        autoUpdateOnScheduleValue = BUILDER
+                .comment("是否在定时更新时间自动更新")
+                .define("autoUpdateOnSchedule", true);
         
         BUILDER.pop();
         SPEC = BUILDER.build();
@@ -93,6 +118,31 @@ public class ClientConfig {
     
     public static String getModpackDownloadUrl() {
         return modpackDownloadUrlValue.get();
+    }
+    
+    public static int getMaxRetryAttempts() {
+        return maxRetryAttemptsValue.get();
+    }
+    
+    public static int getRetryDelaySeconds() {
+        return retryDelaySecondsValue.get();
+    }
+    
+    public static boolean isAutoRollback() {
+        return autoRollbackValue.get();
+    }
+    
+    public static String getScheduledUpdateTime() {
+        return scheduledUpdateTimeValue.get();
+    }
+    
+    public static boolean isAutoUpdateOnSchedule() {
+        return autoUpdateOnScheduleValue.get();
+    }
+    
+    public static boolean isScheduledUpdateEnabled() {
+        String time = getScheduledUpdateTime();
+        return time != null && !time.trim().isEmpty();
     }
     
     @SubscribeEvent
