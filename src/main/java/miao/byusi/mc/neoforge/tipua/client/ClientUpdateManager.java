@@ -106,37 +106,18 @@ public class ClientUpdateManager {
         pendingServerVersion = serverVersion;
 
         Path gameDir = FMLPaths.GAMEDIR.get();
-        Path configDir = FMLPaths.CONFIGDIR.get();
-        Path indexFile = configDir.resolve("tipua").resolve("modrinth.index.json");
         Path modsDir = gameDir.resolve("mods");
 
-        boolean indexExists = Files.exists(indexFile);
         boolean modsExists = Files.exists(modsDir) && Files.isDirectory(modsDir);
+        TIPUAMod.LOGGER.info("mods目录存在: {}", modsExists);
 
-        TIPUAMod.LOGGER.info("索引文件存在: {}, mods目录存在: {}", indexExists, modsExists);
-
-        String indexJson = null;
-        if (!indexExists) {
-            indexJson = fetchIndexFromServer(serverUrl);
-            if (indexJson == null || indexJson.isEmpty()) {
-                TIPUAMod.LOGGER.error("无法从服务器获取索引文件 / Failed to get index file from server");
-                showToast("更新失败 / Update failed", "无法获取索引文件 / Failed to get index file");
-                return;
-            }
-            TIPUAMod.LOGGER.info("已从服务器获取索引文件 / Index file fetched from server");
-        } else {
-            try {
-                indexJson = Files.readString(indexFile);
-                TIPUAMod.LOGGER.info("已读取本地索引文件 / Index file read from local");
-            } catch (IOException e) {
-                TIPUAMod.LOGGER.error("读取本地索引文件失败 / Failed to read local index file", e);
-                indexJson = fetchIndexFromServer(serverUrl);
-                if (indexJson == null || indexJson.isEmpty()) {
-                    showToast("更新失败 / Update failed", "无法获取索引文件 / Failed to get index file");
-                    return;
-                }
-            }
+        String indexJson = fetchIndexFromServer(serverUrl);
+        if (indexJson == null || indexJson.isEmpty()) {
+            TIPUAMod.LOGGER.error("无法从服务器获取索引文件 / Failed to get index file from server");
+            showToast("更新失败 / Update failed", "无法获取索引文件 / Failed to get index file");
+            return;
         }
+        TIPUAMod.LOGGER.info("已从服务器获取索引文件 / Index file fetched from server");
 
         ModrinthIndex index = ModrinthIndex.fromJson(indexJson);
         if (index.getFiles().isEmpty()) {
@@ -145,13 +126,10 @@ public class ClientUpdateManager {
             return;
         }
 
-        if (!indexExists && modsExists) {
-            TIPUAMod.LOGGER.info("索引文件不存在但mods目录存在，删除mods目录 / Index not found but mods exists, deleting mods");
-            deleteDirectory(modsDir);
-        }
-
-        if (indexExists && !modsExists) {
-            TIPUAMod.LOGGER.info("索引文件存在但mods目录不存在，开始下载 / Index exists but mods missing, starting download");
+        if (modsExists) {
+            TIPUAMod.LOGGER.info("mods目录已存在，将在下载完成后清理多余文件 / mods directory exists, will clean extra files after download");
+        } else {
+            TIPUAMod.LOGGER.info("mods目录不存在，将创建并下载所有文件 / mods directory not found, will create and download all files");
         }
 
         previousVersion = VersionManager.getLocalVersion();
@@ -242,6 +220,7 @@ public class ClientUpdateManager {
                     if (downloadScreen != null) {
                         downloadScreen.updateDownloadProgress(currentDownloadedSize, totalDownloadSize);
                         downloadScreen.addLogEntry("info", "下载完成: " + completedFileName);
+                        downloadScreen.resetCurrentFileProgress();
                     }
                 });
 
@@ -290,6 +269,13 @@ public class ClientUpdateManager {
                 }
             });
         }
+
+        executeOnMainThread(() -> {
+            if (downloadScreen != null) {
+                downloadScreen.addLogEntry("info", "开始清理多余文件...");
+            }
+        });
+        cleanExtraFiles(gameDir, index.getFiles());
 
         VersionManager.saveLocalVersion(pendingServerVersion);
 
@@ -369,7 +355,7 @@ public class ClientUpdateManager {
                     final long totalContentLength = contentLength;
                     executeOnMainThread(() -> {
                         if (downloadScreen != null) {
-                            downloadScreen.addLogEntry("info", String.format("下载中... %d/%d", currentDownloaded, totalContentLength));
+                            downloadScreen.updateCurrentFileProgress(currentDownloaded, totalContentLength);
                         }
                     });
                 }
@@ -391,23 +377,46 @@ public class ClientUpdateManager {
 
             int responseCode = connection.getResponseCode();
             if (responseCode != HttpURLConnection.HTTP_OK) {
+                TIPUAMod.LOGGER.info("data.zip不存在，HTTP状态码: {} / data.zip not found, HTTP status: {}", responseCode, responseCode);
                 connection.disconnect();
                 return false;
             }
+
+            int contentLength = connection.getContentLength();
+            if (contentLength < 100) {
+                TIPUAMod.LOGGER.info("data.zip内容太小，跳过 / data.zip content too small, skipping");
+                connection.disconnect();
+                return false;
+            }
+
+            executeOnMainThread(() -> {
+                if (downloadScreen != null) {
+                    downloadScreen.addLogEntry("info", "正在下载data.zip...");
+                }
+            });
 
             try (InputStream is = connection.getInputStream();
                  OutputStream os = Files.newOutputStream(targetPath)) {
 
                 byte[] buffer = new byte[8192];
                 int read;
+                long downloaded = 0;
                 while ((read = is.read(buffer)) != -1) {
                     os.write(buffer, 0, read);
+                    downloaded += read;
                 }
             } finally {
                 connection.disconnect();
             }
 
-            TIPUAMod.LOGGER.info("data.zip下载完成 / data.zip downloaded");
+            long fileSize = Files.size(targetPath);
+            if (fileSize < 100) {
+                TIPUAMod.LOGGER.warn("data.zip下载文件太小，删除并跳过 / data.zip file too small, deleting and skipping");
+                Files.delete(targetPath);
+                return false;
+            }
+
+            TIPUAMod.LOGGER.info("data.zip下载完成，大小: {} / data.zip downloaded, size: {}", fileSize, fileSize);
             return true;
 
         } catch (IOException e) {
@@ -587,6 +596,39 @@ public class ClientUpdateManager {
             }
         } catch (IOException e) {
             TIPUAMod.LOGGER.error("删除目录失败: {}", directory, e);
+        }
+    }
+
+    private static void cleanExtraFiles(Path gameDir, java.util.List<ModrinthIndex.FileEntry> expectedFiles) {
+        java.util.Set<String> expectedPaths = new java.util.HashSet<>();
+        for (ModrinthIndex.FileEntry entry : expectedFiles) {
+            expectedPaths.add(entry.path);
+        }
+
+        Path modsDir = gameDir.resolve("mods");
+        if (Files.exists(modsDir) && Files.isDirectory(modsDir)) {
+            try {
+                Files.walk(modsDir)
+                        .filter(Files::isRegularFile)
+                        .forEach(file -> {
+                            String relativePath = gameDir.relativize(file).toString().replace("\\", "/");
+                            if (!expectedPaths.contains(relativePath)) {
+                                try {
+                                    Files.delete(file);
+                                    TIPUAMod.LOGGER.info("删除多余文件: {} / Deleted extra file: {}", relativePath, relativePath);
+                                    executeOnMainThread(() -> {
+                                        if (downloadScreen != null) {
+                                            downloadScreen.addLogEntry("info", "删除多余文件: " + relativePath);
+                                        }
+                                    });
+                                } catch (IOException e) {
+                                    TIPUAMod.LOGGER.error("删除多余文件失败: {}", relativePath, e);
+                                }
+                            }
+                        });
+            } catch (IOException e) {
+                TIPUAMod.LOGGER.error("清理多余文件失败 / Failed to clean extra files", e);
+            }
         }
     }
 
