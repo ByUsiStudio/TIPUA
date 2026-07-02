@@ -42,3 +42,4 @@ repo/
 /*.log
 /test
 /*.zip
+/modrinth.index.json

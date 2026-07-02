@@ -20,7 +20,6 @@ public class ServerConfig {
     
     private static ModConfigSpec.IntValue httpPortValue;
     private static ModConfigSpec.ConfigValue<String> serverVersionValue;
-    private static ModConfigSpec.ConfigValue<String> modpackDownloadUrlValue;
     
     private static final ModConfigSpec SPEC;
     
@@ -34,10 +33,6 @@ public class ServerConfig {
         serverVersionValue = BUILDER
                 .comment("当前整合包版本号")
                 .define("serverVersion", "1.0.0");
-        
-        modpackDownloadUrlValue = BUILDER
-                .comment("整合包直链下载地址")
-                .define("modpackDownloadUrl", "");
         
         BUILDER.pop();
         SPEC = BUILDER.build();
@@ -53,10 +48,6 @@ public class ServerConfig {
     
     public static String getServerVersion() {
         return serverVersionValue.get();
-    }
-    
-    public static String getModpackDownloadUrl() {
-        return modpackDownloadUrlValue.get();
     }
     
     @SubscribeEvent
@@ -99,9 +90,6 @@ public class ServerConfig {
                 newContent.append("\n\n");
                 newContent.append("# 当前整合包版本号\n");
                 newContent.append(getValueFromToml(content, "serverVersion", "1.0.0"));
-                newContent.append("\n\n");
-                newContent.append("# 整合包直链下载地址\n");
-                newContent.append(getValueFromToml(content, "modpackDownloadUrl", ""));
                 
                 Files.write(newConfigFile, newContent.toString().getBytes());
                 

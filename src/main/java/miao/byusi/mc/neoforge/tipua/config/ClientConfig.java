@@ -24,7 +24,6 @@ public class ClientConfig {
     private static ModConfigSpec.BooleanValue autoExtractValue;
     private static ModConfigSpec.IntValue downloadTimeoutSecondsValue;
     private static ModConfigSpec.BooleanValue showUpdateNotificationValue;
-    private static ModConfigSpec.ConfigValue<String> modpackDownloadUrlValue;
     private static ModConfigSpec.IntValue maxRetryAttemptsValue;
     private static ModConfigSpec.IntValue retryDelaySecondsValue;
     private static ModConfigSpec.BooleanValue autoRollbackValue;
@@ -59,10 +58,6 @@ public class ClientConfig {
         showUpdateNotificationValue = BUILDER
                 .comment("显示更新通知")
                 .define("showUpdateNotification", true);
-        
-        modpackDownloadUrlValue = BUILDER
-                .comment("整合包下载地址（高级选项）")
-                .define("modpackDownloadUrl", "");
         
         maxRetryAttemptsValue = BUILDER
                 .comment("下载失败时的最大重试次数")
@@ -114,10 +109,6 @@ public class ClientConfig {
     
     public static boolean isShowUpdateNotification() {
         return showUpdateNotificationValue.get();
-    }
-    
-    public static String getModpackDownloadUrl() {
-        return modpackDownloadUrlValue.get();
     }
     
     public static int getMaxRetryAttempts() {
@@ -196,9 +187,6 @@ public class ClientConfig {
                 newContent.append("\n\n");
                 newContent.append("# 显示更新通知\n");
                 newContent.append(getValueFromToml(content, "showUpdateNotification", "true"));
-                newContent.append("\n\n");
-                newContent.append("# 整合包下载地址(高级选项)\n");
-                newContent.append(getValueFromToml(content, "modpackDownloadUrl", ""));
                 
                 Files.write(newConfigFile, newContent.toString().getBytes());
                 

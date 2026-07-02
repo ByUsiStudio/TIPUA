@@ -9,27 +9,20 @@ import miao.byusi.mc.neoforge.tipua.util.VersionManager;
 
 import java.io.*;
 import java.net.InetSocketAddress;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 
-/**
- * 服务端HTTP服务器
- * 提供版本标识和直链下载地址
- */
 public class ServerHttpManager {
     private static HttpServer httpServer;
     private static int currentPort = -1;
     private static boolean initialized = false;
 
-    /**
-     * 初始化服务端HTTP服务器
-     */
     public static void initialize() {
         startHttpServer();
         initialized = true;
     }
 
-    /**
-     * 重载HTTP服务器（配置变更时调用）
-     */
     public static void reload() {
         if (!initialized) {
             TIPUAMod.LOGGER.warn("HTTP服务器尚未初始化，跳过重载 / HTTP server not initialized, skipping reload");
@@ -37,8 +30,7 @@ public class ServerHttpManager {
         }
 
         int newPort = ServerConfig.getHttpPort();
-        
-        // 端口变更需要重启服务器
+
         if (currentPort != newPort) {
             TIPUAMod.LOGGER.info("端口配置已变更，重启HTTP服务器: {} -> {} / Port config changed, restarting HTTP server: {} -> {}", currentPort, newPort, currentPort, newPort);
             stop();
@@ -48,9 +40,6 @@ public class ServerHttpManager {
         }
     }
 
-    /**
-     * 启动HTTP服务器
-     */
     private static void startHttpServer() {
         try {
             int port = ServerConfig.getHttpPort();
@@ -58,7 +47,8 @@ public class ServerHttpManager {
             httpServer = HttpServer.create(new InetSocketAddress(port), 0);
 
             httpServer.createContext("/version", new VersionHandler());
-            httpServer.createContext("/download-url", new DownloadUrlHandler());
+            httpServer.createContext("/modrinth.index.json", new IndexHandler());
+            httpServer.createContext("/data.zip", new DataZipHandler());
 
             httpServer.setExecutor(null);
             httpServer.start();
@@ -69,15 +59,11 @@ public class ServerHttpManager {
         }
     }
 
-    /**
-     * 版本标识处理器
-     */
     private static class VersionHandler implements HttpHandler {
         @Override
         public void handle(HttpExchange exchange) throws IOException {
-            // 直接读取配置中的版本号，支持动态更新
             String configVersion = ServerConfig.getServerVersion();
-            
+
             if (!VersionManager.isValidVersion(configVersion)) {
                 TIPUAMod.LOGGER.warn("配置的版本号格式无效: {} / Invalid version format in config: {}", configVersion, configVersion);
                 sendResponse(exchange, 200, "");
@@ -88,41 +74,49 @@ public class ServerHttpManager {
         }
     }
 
-    /**
-     * 下载地址处理器（返回直链）
-     */
-    private static class DownloadUrlHandler implements HttpHandler {
+    private static class IndexHandler implements HttpHandler {
         @Override
         public void handle(HttpExchange exchange) throws IOException {
-            String configuredUrl = ServerConfig.getModpackDownloadUrl();
-            
-            if (configuredUrl == null || configuredUrl.isEmpty()) {
-                TIPUAMod.LOGGER.warn("未配置整合包直链下载地址 / Modpack direct download URL not configured");
-                sendResponse(exchange, 500, "ERROR: 未配置下载地址 / Download URL not configured");
+            Path indexFile = Paths.get("config", "tipua", "modrinth.index.json");
+
+            if (!Files.exists(indexFile)) {
+                TIPUAMod.LOGGER.warn("modrinth.index.json 文件不存在 / modrinth.index.json not found");
+                sendResponse(exchange, 404, "ERROR: modrinth.index.json not found");
                 return;
             }
 
-            if (!isValidUrl(configuredUrl)) {
-                TIPUAMod.LOGGER.warn("配置的直链格式无效: {} / Invalid direct URL format: {}", configuredUrl);
-                sendResponse(exchange, 500, "ERROR: 无效的下载地址格式 / Invalid download URL format");
-                return;
-            }
+            byte[] content = Files.readAllBytes(indexFile);
+            exchange.getResponseHeaders().set("Content-Type", "application/json");
+            exchange.getResponseHeaders().set("Access-Control-Allow-Origin", "*");
+            exchange.sendResponseHeaders(200, content.length);
+            OutputStream os = exchange.getResponseBody();
+            os.write(content);
+            os.close();
 
-            TIPUAMod.LOGGER.info("返回直链下载地址: {} / Sent direct download URL: {}", configuredUrl, configuredUrl);
-            sendResponse(exchange, 200, configuredUrl);
+            TIPUAMod.LOGGER.info("已发送 modrinth.index.json / Sent modrinth.index.json");
         }
+    }
 
-        private boolean isValidUrl(String url) {
-            if (url == null || url.isEmpty()) {
-                return false;
+    private static class DataZipHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            Path dataZipFile = Paths.get("config", "tipua", "data.zip");
+
+            if (!Files.exists(dataZipFile)) {
+                TIPUAMod.LOGGER.info("data.zip 文件不存在，返回404 / data.zip not found, returning 404");
+                sendResponse(exchange, 404, "ERROR: data.zip not found");
+                return;
             }
-            try {
-                java.net.URL urlObj = new java.net.URL(url);
-                String protocol = urlObj.getProtocol();
-                return "http".equals(protocol) || "https".equals(protocol);
-            } catch (java.net.MalformedURLException e) {
-                return false;
-            }
+
+            byte[] content = Files.readAllBytes(dataZipFile);
+            exchange.getResponseHeaders().set("Content-Type", "application/zip");
+            exchange.getResponseHeaders().set("Access-Control-Allow-Origin", "*");
+            exchange.sendResponseHeaders(200, content.length);
+            OutputStream os = exchange.getResponseBody();
+            os.write(content);
+            os.close();
+
+            TIPUAMod.LOGGER.info("已发送 data.zip / Sent data.zip");
         }
     }
 
@@ -135,9 +129,6 @@ public class ServerHttpManager {
         os.close();
     }
 
-    /**
-     * 停止HTTP服务器
-     */
     public static void stop() {
         if (httpServer != null) {
             httpServer.stop(0);
