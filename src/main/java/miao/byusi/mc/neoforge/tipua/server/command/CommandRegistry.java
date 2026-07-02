@@ -94,6 +94,8 @@ public class CommandRegistry {
     }
     
     private static String getBuildTimestamp() {
-        return "北 (BeiAne)";
+        return java.time.LocalDateTime.now().format(
+            java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
+        );
     }
 }
