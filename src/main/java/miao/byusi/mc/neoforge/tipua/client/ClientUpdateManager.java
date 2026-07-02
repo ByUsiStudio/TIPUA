@@ -170,7 +170,6 @@ public class ClientUpdateManager {
 
         executeOnMainThread(() -> {
             if (downloadScreen != null) {
-                downloadScreen.updateDownloadProgress(0, totalSize);
                 downloadScreen.setFileProgress(0, files.size(), "");
             }
         });
@@ -190,14 +189,40 @@ public class ClientUpdateManager {
             executeOnMainThread(() -> {
                 if (downloadScreen != null) {
                     downloadScreen.setFileProgress(currentIndex, totalFileCount, currentFileName);
-                    downloadScreen.addLogEntry("info", "正在下载: " + currentFileName);
                 }
             });
 
             Path targetPath = gameDir.resolve(entry.path);
 
             try {
+                if (Files.exists(targetPath)) {
+                    boolean verified = HashUtil.verifyAll(targetPath.toFile(), entry.getSha1(), entry.getSha512());
+                    if (verified) {
+                        executeOnMainThread(() -> {
+                            if (downloadScreen != null) {
+                                downloadScreen.addLogEntry("info", "跳过: " + currentFileName + " (已存在且哈希匹配)");
+                            }
+                        });
+                        TIPUAMod.LOGGER.info("跳过下载: {} (已存在且哈希匹配) / Skipping: {} (already exists with matching hash)", fileName, fileName);
+                        downloadedSize += entry.fileSize;
+                        continue;
+                    } else {
+                        executeOnMainThread(() -> {
+                            if (downloadScreen != null) {
+                                downloadScreen.addLogEntry("info", "哈希不匹配，重新下载: " + currentFileName);
+                            }
+                        });
+                        TIPUAMod.LOGGER.info("哈希不匹配，重新下载: {} / Hash mismatch, re-downloading: {}", fileName, fileName);
+                    }
+                }
+
                 Files.createDirectories(targetPath.getParent());
+
+                executeOnMainThread(() -> {
+                    if (downloadScreen != null) {
+                        downloadScreen.addLogEntry("info", "正在下载: " + currentFileName);
+                    }
+                });
 
                 boolean downloaded = downloadFileWithRetry(entry, targetPath);
                 if (!downloaded) {
@@ -218,7 +243,6 @@ public class ClientUpdateManager {
 
                 executeOnMainThread(() -> {
                     if (downloadScreen != null) {
-                        downloadScreen.updateDownloadProgress(currentDownloadedSize, totalDownloadSize);
                         downloadScreen.addLogEntry("info", "下载完成: " + completedFileName);
                         downloadScreen.resetCurrentFileProgress();
                     }

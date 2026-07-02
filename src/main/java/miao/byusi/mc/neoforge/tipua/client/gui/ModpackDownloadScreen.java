@@ -17,16 +17,7 @@ public class ModpackDownloadScreen extends Screen {
     private final String version;
     private final Runnable onCancel;
 
-    private long downloadedBytes = 0;
-    private long totalBytes = 0;
     private String status = Component.translatable("tipua.gui.download.starting").getString();
-
-    private static final int SPEED_SAMPLE_WINDOW_MS = 3000;
-    private static final int MAX_SAMPLES = 10;
-    private final long[] sampleTimes = new long[MAX_SAMPLES];
-    private final long[] sampleBytes = new long[MAX_SAMPLES];
-    private int sampleCount = 0;
-    private int sampleHead = 0;
 
     private long extractionCurrent = 0;
     private long extractionTotal = 0;
@@ -48,9 +39,8 @@ public class ModpackDownloadScreen extends Screen {
     private Button exitButton;
     private Button rollbackButton;
 
-    private final List<String> logEntries = new ArrayList<>();
-    private float logScrollOffset = 0;
-    private static final int MAX_LOG_LINES = 200;
+    private String currentLog = "";
+    private int currentLogColor = 0x888888;
 
     private final Runnable onRollback;
 
@@ -126,40 +116,28 @@ public class ModpackDownloadScreen extends Screen {
 
         int progressBarWidth = contentWidth;
         int progressBarHeight = 20;
-        int mainProgressBarY = centerY - contentHeight / 2 + 100;
+        int progressBarY = centerY - contentHeight / 2 + 100;
 
         if (totalFiles > 0) {
             String fileProgress = String.format("文件 %d/%d: %s", currentFileIndex, totalFiles, currentFileName);
-            guiGraphics.drawCenteredString(this.font, Component.literal(fileProgress), centerX, mainProgressBarY - 25, 0xAAAAAA);
+            guiGraphics.drawCenteredString(this.font, Component.literal(fileProgress), centerX, progressBarY - 25, 0xAAAAAA);
         }
 
-        guiGraphics.fill(centerX - progressBarWidth / 2, mainProgressBarY, centerX + progressBarWidth / 2, mainProgressBarY + progressBarHeight, 0xFF202020);
+        guiGraphics.fill(centerX - progressBarWidth / 2, progressBarY, centerX + progressBarWidth / 2, progressBarY + progressBarHeight, 0xFF202020);
 
         int borderColor = 0xFF606060;
-        guiGraphics.fill(centerX - progressBarWidth / 2, mainProgressBarY, centerX + progressBarWidth / 2, mainProgressBarY + 1, borderColor);
-        guiGraphics.fill(centerX - progressBarWidth / 2, mainProgressBarY + progressBarHeight - 1, centerX + progressBarWidth / 2, mainProgressBarY + progressBarHeight, borderColor);
-        guiGraphics.fill(centerX - progressBarWidth / 2, mainProgressBarY, centerX - progressBarWidth / 2 + 1, mainProgressBarY + progressBarHeight, borderColor);
-        guiGraphics.fill(centerX + progressBarWidth / 2 - 1, mainProgressBarY, centerX + progressBarWidth / 2, mainProgressBarY + progressBarHeight, borderColor);
-
-        if (totalBytes > 0) {
-            drawMainDownloadProgress(guiGraphics, centerX, mainProgressBarY, progressBarWidth, progressBarHeight);
-        } else if (extractionTotal > 0) {
-            drawExtractionProgress(guiGraphics, centerX, mainProgressBarY, progressBarWidth, progressBarHeight);
-        }
+        guiGraphics.fill(centerX - progressBarWidth / 2, progressBarY, centerX + progressBarWidth / 2, progressBarY + 1, borderColor);
+        guiGraphics.fill(centerX - progressBarWidth / 2, progressBarY + progressBarHeight - 1, centerX + progressBarWidth / 2, progressBarY + progressBarHeight, borderColor);
+        guiGraphics.fill(centerX - progressBarWidth / 2, progressBarY, centerX - progressBarWidth / 2 + 1, progressBarY + progressBarHeight, borderColor);
+        guiGraphics.fill(centerX + progressBarWidth / 2 - 1, progressBarY, centerX + progressBarWidth / 2, progressBarY + progressBarHeight, borderColor);
 
         if (currentFileTotal > 0) {
-            int fileProgressBarY = mainProgressBarY + 30;
-            guiGraphics.fill(centerX - progressBarWidth / 2, fileProgressBarY, centerX + progressBarWidth / 2, fileProgressBarY + progressBarHeight, 0xFF202020);
-
-            guiGraphics.fill(centerX - progressBarWidth / 2, fileProgressBarY, centerX + progressBarWidth / 2, fileProgressBarY + 1, borderColor);
-            guiGraphics.fill(centerX - progressBarWidth / 2, fileProgressBarY + progressBarHeight - 1, centerX + progressBarWidth / 2, fileProgressBarY + progressBarHeight, borderColor);
-            guiGraphics.fill(centerX - progressBarWidth / 2, fileProgressBarY, centerX - progressBarWidth / 2 + 1, fileProgressBarY + progressBarHeight, borderColor);
-            guiGraphics.fill(centerX + progressBarWidth / 2 - 1, fileProgressBarY, centerX + progressBarWidth / 2, fileProgressBarY + progressBarHeight, borderColor);
-
-            drawFileDownloadProgress(guiGraphics, centerX, fileProgressBarY, progressBarWidth, progressBarHeight);
+            drawFileDownloadProgress(guiGraphics, centerX, progressBarY, progressBarWidth, progressBarHeight);
+        } else if (extractionTotal > 0) {
+            drawExtractionProgress(guiGraphics, centerX, progressBarY, progressBarWidth, progressBarHeight);
         }
 
-        int logY = centerY - contentHeight / 2 + 160 + (currentFileTotal > 0 ? 35 : 0);
+        int logY = centerY - contentHeight / 2 + 160;
         drawLogArea(guiGraphics, centerX, logY, contentWidth);
 
         if (hasError) {
@@ -187,9 +165,9 @@ public class ModpackDownloadScreen extends Screen {
         this.renderables.forEach(widget -> widget.render(guiGraphics, mouseX, mouseY, partialTick));
     }
 
-    private void drawMainDownloadProgress(GuiGraphics guiGraphics, int centerX, int progressBarY,
+    private void drawFileDownloadProgress(GuiGraphics guiGraphics, int centerX, int progressBarY,
             int progressBarWidth, int progressBarHeight) {
-        double progress = (double) downloadedBytes / totalBytes;
+        double progress = (double) currentFileDownloaded / currentFileTotal;
         int progressWidth = (int) (progress * progressBarWidth);
         int progressColor = 0xFF55FF55;
         if (progress < 0.3) progressColor = 0xFFFF5555;
@@ -201,57 +179,10 @@ public class ModpackDownloadScreen extends Screen {
         Component percentageText = Component.literal(percentage + "%");
         guiGraphics.drawCenteredString(this.font, percentageText, centerX, progressBarY + 28, 0xFFFFFF);
 
-        String downloadedStr = formatBytes(downloadedBytes);
-        String totalStr = formatBytes(totalBytes);
-        Component sizeText = Component.literal(downloadedStr + " / " + totalStr);
-        guiGraphics.drawCenteredString(this.font, sizeText, centerX, progressBarY + 43, 0xAAAAAA);
-
-        long avgSpeed = calculateAverageSpeed(System.currentTimeMillis());
-        if (avgSpeed > 0) {
-            Component speedText = Component.translatable("tipua.gui.download.speed", formatBytes(avgSpeed) + "/s");
-            guiGraphics.drawCenteredString(this.font, speedText, centerX, progressBarY + 58, 0xAAAAAA);
-        }
-    }
-
-    private void drawFileDownloadProgress(GuiGraphics guiGraphics, int centerX, int progressBarY,
-            int progressBarWidth, int progressBarHeight) {
-        double progress = (double) currentFileDownloaded / currentFileTotal;
-        int progressWidth = (int) (progress * progressBarWidth);
-        int progressColor = 0xFF55AAFF;
-
-        guiGraphics.fill(centerX - progressBarWidth / 2, progressBarY, centerX - progressBarWidth / 2 + progressWidth, progressBarY + progressBarHeight, progressColor);
-
-        int percentage = (int) (progress * 100);
-        Component percentageText = Component.literal("单个文件: " + percentage + "%");
-        guiGraphics.drawCenteredString(this.font, percentageText, centerX, progressBarY + 28, 0xFFFFFF);
-
         String downloadedStr = formatBytes(currentFileDownloaded);
         String totalStr = formatBytes(currentFileTotal);
         Component sizeText = Component.literal(downloadedStr + " / " + totalStr);
         guiGraphics.drawCenteredString(this.font, sizeText, centerX, progressBarY + 43, 0xAAAAAA);
-    }
-
-    private long calculateAverageSpeed(long now) {
-        if (sampleCount == 0) {
-            return 0;
-        }
-        int oldestIdx = -1;
-        for (int i = 0; i < sampleCount; i++) {
-            int idx = (sampleHead - sampleCount + i + MAX_SAMPLES) % MAX_SAMPLES;
-            if (now - sampleTimes[idx] <= SPEED_SAMPLE_WINDOW_MS) {
-                oldestIdx = idx;
-                break;
-            }
-        }
-        if (oldestIdx == -1) {
-            oldestIdx = (sampleHead - sampleCount + MAX_SAMPLES) % MAX_SAMPLES;
-        }
-        long timeDelta = now - sampleTimes[oldestIdx];
-        long bytesDelta = downloadedBytes - sampleBytes[oldestIdx];
-        if (timeDelta <= 0 || bytesDelta <= 0) {
-            return 0;
-        }
-        return bytesDelta * 1000L / timeDelta;
     }
 
     private void drawExtractionProgress(GuiGraphics guiGraphics, int centerX, int progressBarY,
@@ -271,7 +202,7 @@ public class ModpackDownloadScreen extends Screen {
 
     private void drawLogArea(GuiGraphics guiGraphics, int centerX, int logY, int contentWidth) {
         int logWidth = contentWidth;
-        int logHeight = Math.max(80, (this.height - logY - 80));
+        int logHeight = 20;
 
         guiGraphics.fill(centerX - logWidth / 2, logY, centerX + logWidth / 2, logY + logHeight, 0xFF1A1A1A);
 
@@ -281,36 +212,8 @@ public class ModpackDownloadScreen extends Screen {
         guiGraphics.fill(centerX - logWidth / 2, logY, centerX - logWidth / 2 + 1, logY + logHeight, borderColor);
         guiGraphics.fill(centerX + logWidth / 2 - 1, logY, centerX + logWidth / 2, logY + logHeight, borderColor);
 
-        Component logTitle = Component.literal("[ 操作日志 ]").withStyle(ChatFormatting.GRAY);
-        guiGraphics.drawString(this.font, logTitle, centerX - logWidth / 2 + 5, logY + 2, 0xAAAAAA);
-
-        int lineHeight = 10;
-        int visibleLines = (logHeight - 15) / lineHeight;
-        int totalLines = logEntries.size();
-
-        if (totalLines > visibleLines) {
-            while (logScrollOffset > totalLines - visibleLines) {
-                logScrollOffset = totalLines - visibleLines;
-            }
-            while (logScrollOffset < 0) {
-                logScrollOffset = 0;
-            }
-        } else {
-            logScrollOffset = 0;
-        }
-
-        int startLine = (int) logScrollOffset;
-        for (int i = 0; i < visibleLines && startLine + i < totalLines; i++) {
-            String entry = logEntries.get(startLine + i);
-            int y = logY + 15 + i * lineHeight;
-            int color = 0x888888;
-
-            if (entry.startsWith("[INFO]")) color = 0x55FF55;
-            else if (entry.startsWith("[WARN]")) color = 0xFFFF55;
-            else if (entry.startsWith("[ERROR]")) color = 0xFF5555;
-            else if (entry.startsWith("[解压]")) color = 0x55AAFF;
-
-            guiGraphics.drawString(this.font, entry, centerX - logWidth / 2 + 5, y, color);
+        if (!currentLog.isEmpty()) {
+            guiGraphics.drawString(this.font, currentLog, centerX - logWidth / 2 + 5, logY + 2, currentLogColor);
         }
     }
 
@@ -324,33 +227,23 @@ public class ModpackDownloadScreen extends Screen {
             default -> "[INFO]";
         };
 
-        logEntries.add(timestamp + " " + prefix + " " + message);
-
-        if (logEntries.size() > MAX_LOG_LINES) {
-            logEntries.remove(0);
-        }
-
-        logScrollOffset = logEntries.size();
-    }
-
-    public void updateDownloadProgress(long downloadedBytes, long totalBytes) {
-        this.downloadedBytes = downloadedBytes;
-        this.totalBytes = totalBytes;
-        this.extractionCurrent = 0;
-        this.extractionTotal = 0;
-        this.status = Component.translatable("tipua.gui.download.downloading").getString();
-        long now = System.currentTimeMillis();
-        sampleTimes[sampleHead] = now;
-        sampleBytes[sampleHead] = downloadedBytes;
-        sampleHead = (sampleHead + 1) % MAX_SAMPLES;
-        if (sampleCount < MAX_SAMPLES) {
-            sampleCount++;
-        }
+        this.currentLog = timestamp + " " + prefix + " " + message;
+        
+        this.currentLogColor = switch (type.toLowerCase()) {
+            case "info" -> 0x55FF55;
+            case "warn" -> 0xFFFF55;
+            case "error" -> 0xFF5555;
+            case "extract" -> 0x55AAFF;
+            default -> 0x888888;
+        };
     }
 
     public void updateCurrentFileProgress(long downloaded, long total) {
         this.currentFileDownloaded = downloaded;
         this.currentFileTotal = total;
+        this.extractionCurrent = 0;
+        this.extractionTotal = 0;
+        this.status = Component.translatable("tipua.gui.download.downloading").getString();
     }
 
     public void resetCurrentFileProgress() {
@@ -362,8 +255,6 @@ public class ModpackDownloadScreen extends Screen {
         this.extractionCurrent = current;
         this.extractionTotal = total;
         this.extractingFile = relativePath;
-        this.downloadedBytes = 0;
-        this.totalBytes = 0;
         this.currentFileDownloaded = 0;
         this.currentFileTotal = 0;
         this.status = Component.translatable("tipua.gui.download.extracting").getString();
@@ -404,23 +295,6 @@ public class ModpackDownloadScreen extends Screen {
         this.currentFileName = fileName;
         this.currentFileDownloaded = 0;
         this.currentFileTotal = 0;
-    }
-
-    @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double deltaX, double deltaY) {
-        int centerX = this.width / 2;
-        int centerY = this.height / 2;
-        int contentWidth = Math.min(this.width - 40, 600);
-        int logY = centerY - Math.min(this.height - 80, 400) / 2 + 160 + (currentFileTotal > 0 ? 35 : 0);
-        int logWidth = contentWidth;
-        int logHeight = Math.max(80, (this.height - logY - 80));
-
-        if (mouseX >= centerX - logWidth / 2 && mouseX <= centerX + logWidth / 2 && 
-            mouseY >= logY && mouseY <= logY + logHeight) {
-            logScrollOffset -= deltaY * 3;
-            return true;
-        }
-        return super.mouseScrolled(mouseX, mouseY, deltaX, deltaY);
     }
 
     private String formatBytes(long bytes) {
