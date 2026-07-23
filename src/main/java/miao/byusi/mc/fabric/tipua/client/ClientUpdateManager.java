@@ -9,15 +9,16 @@ import miao.byusi.mc.fabric.tipua.util.RollbackManager;
 import miao.byusi.mc.fabric.tipua.util.VersionManager;
 import miao.byusi.mc.fabric.tipua.client.ClientNetworkManager;
 import net.fabricmc.loader.api.FabricLoader;
-import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Minecraft;
 
-import java.io.*;
-import java.net.HttpURLConnection;
-import java.net.URL;
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.List;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -51,6 +52,12 @@ public class ClientUpdateManager {
         }
 
         startUpdateCheck();
+    }
+
+    private static boolean isConnectedToServer() {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft == null) return false;
+        return minecraft.player != null && minecraft.getNetworkHandler() != null;
     }
 
     private static void startUpdateCheck() {
@@ -117,7 +124,7 @@ public class ClientUpdateManager {
             showDownloadScreen(index.getVersionId());
         }
 
-        startIndexDownload(index, serverUrl);
+        startIndexDownload(index);
     }
 
     private static void showDownloadScreen(String version) {
@@ -135,7 +142,7 @@ public class ClientUpdateManager {
         });
     }
 
-    private static void startIndexDownload(ModrinthIndex index, String serverUrl) {
+    private static void startIndexDownload(ModrinthIndex index) {
         isDownloading = true;
         updateInProgress = true;
 
@@ -313,14 +320,14 @@ public class ClientUpdateManager {
         int retryDelay = ClientConfig.getRetryDelaySeconds();
 
         for (int attempt = 0; attempt <= maxRetries; attempt++) {
-            for (String url : entry.downloads) {
-                try {
-                    if (downloadFile(url, targetPath)) {
-                        return true;
-                    }
-                } catch (IOException e) {
-                    TIPUAMod.LOGGER.warn("Download failed, trying next URL: {}", url);
+            try {
+                byte[] data = ClientNetworkManager.requestFile(entry.path);
+                if (data != null && data.length > 0) {
+                    Files.write(targetPath, data);
+                    return true;
                 }
+            } catch (IOException e) {
+                TIPUAMod.LOGGER.warn("Download failed for {}: {}", entry.path, e.getMessage());
             }
 
             if (attempt < maxRetries) {
@@ -337,108 +344,7 @@ public class ClientUpdateManager {
         return false;
     }
 
-    private static boolean downloadFile(String urlStr, Path targetPath) throws IOException {
-        URL url = new URL(urlStr);
-        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-        connection.setConnectTimeout(ClientConfig.getDownloadTimeoutSeconds() * 1000);
-        connection.setReadTimeout(ClientConfig.getDownloadTimeoutSeconds() * 1000);
-        connection.setRequestProperty("User-Agent", "TIPUA/1.0.0");
-
-        int responseCode = connection.getResponseCode();
-        if (responseCode != HttpURLConnection.HTTP_OK) {
-            connection.disconnect();
-            return false;
-        }
-
-        long contentLength = connection.getContentLengthLong();
-
-        try (InputStream is = connection.getInputStream();
-             OutputStream os = Files.newOutputStream(targetPath)) {
-
-            byte[] buffer = new byte[8192];
-            int read;
-            long downloaded = 0;
-
-            while ((read = is.read(buffer)) != -1) {
-                if (!isDownloading) {
-                    throw new IOException("Download cancelled");
-                }
-                os.write(buffer, 0, read);
-                downloaded += read;
-
-                if (downloadScreen != null && contentLength > 0) {
-                    final long currentDownloaded = downloaded;
-                    final long totalContentLength = contentLength;
-                    executeOnMainThread(() -> {
-                        if (downloadScreen != null) {
-                            downloadScreen.updateCurrentFileProgress(currentDownloaded, totalContentLength);
-                        }
-                    });
-                }
-            }
-        } finally {
-            connection.disconnect();
-        }
-
-        return true;
-    }
-
-    private static boolean downloadDataZip(String urlStr, Path targetPath) {
-        try {
-            URL url = new URL(urlStr);
-            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-            connection.setConnectTimeout(10000);
-            connection.setReadTimeout(10000);
-            connection.setRequestProperty("User-Agent", "TIPUA/1.0.0");
-
-            int responseCode = connection.getResponseCode();
-            if (responseCode != HttpURLConnection.HTTP_OK) {
-                TIPUAMod.LOGGER.info("data.zip not found, HTTP status: {}", responseCode);
-                connection.disconnect();
-                return false;
-            }
-
-            int contentLength = connection.getContentLength();
-            if (contentLength < 100) {
-                TIPUAMod.LOGGER.info("data.zip content too small, skipping");
-                connection.disconnect();
-                return false;
-            }
-
-            executeOnMainThread(() -> {
-                if (downloadScreen != null) {
-                    downloadScreen.addLogEntry("info", "Downloading data.zip...");
-                }
-            });
-
-            try (InputStream is = connection.getInputStream();
-                 OutputStream os = Files.newOutputStream(targetPath)) {
-
-                byte[] buffer = new byte[8192];
-                int read;
-                long downloaded = 0;
-                while ((read = is.read(buffer)) != -1) {
-                    os.write(buffer, 0, read);
-                    downloaded += read;
-                }
-            } finally {
-                connection.disconnect();
-            }
-
-            long fileSize = Files.size(targetPath);
-            if (fileSize < 100) {
-                TIPUAMod.LOGGER.warn("data.zip file too small, deleting and skipping");
-                Files.delete(targetPath);
-                return false;
-            }
-
-            TIPUAMod.LOGGER.info("data.zip downloaded, size: {}", fileSize);
-            return true;
-
-        } catch (IOException e) {
-            TIPUAMod.LOGGER.info("data.zip download failed (may not exist)");
-            return false;
-        }
+    // HTTP-based helpers removed; data and files are transferred via Fabric networking (ClientNetworkManager)
     }
 
     private static boolean extractDataZip(Path zipPath, Path targetDir) {
