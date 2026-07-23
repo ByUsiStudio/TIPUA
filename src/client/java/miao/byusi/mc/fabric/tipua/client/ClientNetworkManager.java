@@ -5,7 +5,6 @@ import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
 import net.minecraft.util.Identifier;
 import net.minecraft.network.PacketByteBuf;
-// no alias imports
 
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -29,7 +28,6 @@ public class ClientNetworkManager {
             int len = buf.readInt();
             byte[] data = new byte[len];
             buf.readBytes(data);
-            // complete a special index future keyed by 0
             CompletableFuture<byte[]> f = pending.remove(0);
             if (f != null) f.complete(data);
         });
@@ -45,7 +43,6 @@ public class ClientNetworkManager {
             int len = buf.readInt();
             byte[] data = new byte[len];
             buf.readBytes(data);
-            // for simplicity complete special file future keyed by -1
             CompletableFuture<byte[]> f = pending.remove(-1);
             if (f != null) f.complete(data);
         });

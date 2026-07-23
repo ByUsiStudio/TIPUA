@@ -37,8 +37,8 @@ public class TIPUAMod implements ModInitializer {
         ServerConfig.load();
 
         ServerLifecycleEvents.SERVER_STARTING.register(server -> {
-            LOGGER.info("Server starting, initializing network handlers");
-            miao.byusi.mc.fabric.tipua.server.ServerNetworkManager.initialize();
+                LOGGER.info("Server starting, initializing network handlers");
+                miao.byusi.mc.fabric.tipua.server.ServerNetworkManager.initialize();
         });
 
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
