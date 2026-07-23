@@ -292,10 +292,8 @@ TIPUA与Modrinth深度集成：
 ## 许可证
 
 [AGPL-3.0](LICENSE)
-[AGPL-3.0](LICENSE)
 
 ## Team
 ## 制作团队
 
-[ByUsi Studio](https://about.cdifit.cn)
 [ByUsi Studio](https://about.cdifit.cn)
