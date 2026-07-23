@@ -1,11 +1,40 @@
+# TIPUA - Modpack Auto Update Tool
 # TIPUA - 整合包自动更新工具
 
 [Modrinth](https://modrinth.com/mod/tipua)
 
+A NeoForge mod that automatically syncs modpack content between server and client via `modrinth.index.json` file.
 一个NeoForge模组，通过 `modrinth.index.json` 文件自动同步服务端和客户端的整合包内容。
 
+## Features
 ## 功能特性
 
+- **Version Management**: Semantic versioning system (e.g., 1.2.1) for precise version control
+- **modrinth.index.json Support**: Reads `modrinth.index.json` from config directory to download mods
+- **SHA-1/SHA-512 Verification**: Double hash verification for every downloaded file ensuring integrity
+- **Smart File Management**:
+  - Config file exists but mods folder doesn't → Download according to config
+  - Config file doesn't exist but mods directory exists → Auto-delete mods directory
+- **data.zip Support**: Server can provide additional `data.zip` file, extracted in replace mode at the end
+- **Multi-threaded Download**: Automatic multi-threaded download acceleration with Range request detection and automatic fallback to single thread
+- **Smart Network Monitoring**: Real-time network condition monitoring with dynamic thread adjustment (1-8 threads)
+- **Auto Retry Mechanism**: Automatic retry on network timeout or connection failure, configurable retry count and delay
+- **Detailed Error Handling**: Detailed error cause analysis and solution suggestions
+- **Resumable Downloads**: Support for continuing interrupted downloads, saving time and bandwidth
+- **Download Progress Display**: Real-time display of download progress, speed, and remaining time
+- **Incremental Updates**: Smart analysis of large file changes, only download modified parts, saving bandwidth
+- **Mod Optimization**: Automatic detection of duplicate and outdated mods with optimization suggestions
+- **Smart Conflict Handling**: Automatic file conflict detection during extraction with multiple resolution strategies
+- **Auto Rollback**: Automatic rollback to previous version on update failure, supports one-click manual rollback
+- **Log Panel UI**: Real-time operation log display during download with scrollable history
+- **Scheduled Updates**: Support for setting scheduled update time, automatic update check at scheduled time
+- **Markdown Logs**: Update logs support Markdown rich text format display
+- **Auto Download**: Client automatically downloads and extracts updates on join
+- **Server Commands**: In-game commands for managing and monitoring TIPUA
+- **Fully Configurable**: Both server and client behavior are configurable
+- **Update Preview**: Display list of files to be updated before downloading
+- **Rollback Feature**: One-click rollback to previous version
+- **Modrinth Integration**: Automatically fetch mod information and updates from Modrinth
 - **版本管理**：语义化版本系统（如1.2.1），精确控制版本
 - **modrinth.index.json 支持**：读取配置目录下的 `modrinth.index.json` 文件来下载模组
 - **SHA-1/SHA-512 校验**：下载的每个文件都会进行双重哈希校验，确保文件完整性
@@ -33,13 +62,18 @@
 - **回滚功能**：一键回滚到上一版本
 - **Modrinth集成**：自动从Modrinth获取模组信息和更新
 
+## Requirements
 ## 运行要求
 
 - Minecraft 1.21.1
 - NeoForge 21.1.234+
+- Minecraft 1.21.1
+- NeoForge 21.1.234+
 
+## modrinth.index.json Format
 ## modrinth.index.json 格式
 
+The server needs to place a `modrinth.index.json` file in the `config/tipua/` directory with the following format:
 服务器需要在 `config/tipua/` 目录放置 `modrinth.index.json` 文件，格式如下：
 
 ```json
@@ -68,10 +102,20 @@
 }
 ```
 
+## Installation
 ## 安装方法
 
+### Server Installation
 ### 服务端安装
 
+1. Place the TIPUA mod JAR in the server's `mods/` directory
+2. Place the following files in the `config/tipua/` directory:
+   - `modrinth.index.json` - Modpack index file (required)
+   - `data.zip` (optional) - Additional data zip file, extracted to game directory at the end
+3. A `tipua-server.toml` config file will be automatically generated in the `config/` directory:
+   - Set `serverVersion` to the modpack version (e.g., "1.0.0")
+   - Set `httpPort` (default: 25566) for the version query endpoint
+4. Start the server
 1. 将TIPUA模组JAR放入服务器的 `mods/` 目录
 2. 在 `config/tipua/` 目录放置以下文件：
    - `modrinth.index.json` - 整合包索引文件（必须）
@@ -81,8 +125,15 @@
    - 设置 `httpPort`（默认：25566）用于版本查询端点
 4. 启动服务器
 
+### Client Installation
 ### 客户端安装
 
+1. Place the TIPUA mod JAR in the client's `mods/` directory
+2. A `tipua-client.toml` config file will be automatically generated in the `config/` directory:
+   - Set `serverAddress` to the server address
+   - Set `httpPort` to match the server port
+3. Update check will not run on first launch
+4. Auto-check for updates after entering the main menu
 1. 将TIPUA模组JAR放入客户端的 `mods/` 目录
 2. 在 `config/` 目录会自动生成 `tipua-client.toml` 配置文件：
    - 设置 `serverAddress` 为服务器地址
@@ -90,17 +141,37 @@
 3. 第一次启动不会检查更新
 4. 进入主菜单后自动开始检查更新
 
+## Configuration
 ## 配置说明
 
+### Server Settings (`tipua-server.toml`)
 ### 服务端设置 (`tipua-server.toml`)
 
+| Setting | Description | Default |
+|---------|-------------|---------|
+| `httpPort` | HTTP server port (for version query and file distribution) | 25566 |
+| `serverVersion` | Current modpack version (e.g., 1.2.1) | 1.0.0 |
 | 设置项 | 描述 | 默认值 |
 |-------|------|--------|
 | `httpPort` | HTTP服务器端口（用于版本查询和文件分发） | 25566 |
 | `serverVersion` | 当前整合包版本号（如1.2.1） | 1.0.0 |
 
+### Client Settings (`tipua-client.toml`)
 ### 客户端设置 (`tipua-client.toml`)
 
+| Setting | Description | Default |
+|---------|-------------|---------|
+| `serverAddress` | Server HTTP address | localhost |
+| `httpPort` | Server HTTP port | 25566 |
+| `autoUpdate` | Auto-check for updates | true |
+| `autoExtract` | Auto-extract files | true |
+| `downloadTimeoutSeconds` | Download timeout (seconds) | 300 |
+| `showUpdateNotification` | Show notifications | true |
+| `maxRetryAttempts` | Maximum retry attempts on download failure | 3 |
+| `retryDelaySeconds` | Delay between retries (seconds) | 5 |
+| `autoRollback` | Auto-rollback to previous version on update failure | true |
+| `scheduledUpdateTime` | Scheduled update time (HH:mm format, e.g., 14:30), leave empty to disable | (empty) |
+| `autoUpdateOnSchedule` | Auto-update at scheduled time | true |
 | 设置项 | 描述 | 默认值 |
 |-------|------|--------|
 | `serverAddress` | 服务器HTTP地址 | localhost |
@@ -115,10 +186,19 @@
 | `scheduledUpdateTime` | 定时更新时间（HH:mm格式，如 14:30），留空则禁用定时更新 | (空) |
 | `autoUpdateOnSchedule` | 是否在定时更新时间自动更新 | true |
 
+## Server Commands
 ## 服务端命令
 
+Server OPs can use the following commands:
 服务端OP可使用以下命令：
 
+| Command | Description |
+|---------|-------------|
+| `/tipua` | Show TIPUA help information |
+| `/tipua version` | Show current modpack version |
+| `/tipua info` | Show complete server configuration |
+| `/tipua reload` | Reload TIPUA configuration (version takes effect immediately) |
+| `/tipua modinfo` | Show mod build information and version |
 | 命令 | 描述 |
 |-----|------|
 | `/tipua` | 显示TIPUA帮助信息 |
@@ -127,17 +207,43 @@
 | `/tipua reload` | 重载TIPUA配置（版本号即时生效） |
 | `/tipua modinfo` | 显示模组编译信息和版本 |
 
+## Client Commands
 ## 客户端命令
 
+Clients can use the following commands:
 客户端可使用以下命令：
 
+| Command | Description |
+|---------|-------------|
+| `/tipua rollback` | One-click rollback to previous version |
+| `/tipua modinfo` | Show mod build information and version |
 | 命令 | 描述 |
 |-----|------|
 | `/tipua rollback` | 一键回滚到上一版本 |
 | `/tipua modinfo` | 显示模组编译信息和版本 |
 
+## How It Works
 ## 工作原理
 
+1. **Version Query**: Client queries version from server `/version` endpoint
+2. **Index File Retrieval**: Client fetches index file from server `/modrinth.index.json`
+3. **Version Comparison**: Client compares local version with server version
+4. **File Status Check**:
+   - If config file exists but mods folder doesn't → Download according to config
+   - If config file doesn't exist but mods directory exists → Auto-delete mods directory
+5. **Download**: If server version is newer, client downloads each file according to index
+   - Multiple download URLs per file, auto-try next on failure
+   - SHA-1 and SHA-512 verification after download
+   - Smart network monitoring: dynamic thread adjustment based on network conditions
+   - Auto retry: automatic retry on network timeout or connection failure (configurable count and delay)
+6. **Progress Display**: Show download progress bar, speed, remaining time, and current file name
+7. **data.zip Processing**: After all files downloaded, attempt to download `data.zip` from server
+   - Extract to game directory in replace mode
+8. **Version Update**: After all downloads and extractions complete, update client version identifier
+9. **Error Recovery**:
+   - Auto rollback: automatic rollback to previous version on update failure (configurable)
+   - Manual rollback: manual rollback via `/tipua rollback` command
+10. **Restart**: Prompt user to click "Quit Game" button to restart for changes to take effect
 1. **版本查询**：客户端向服务端 `/version` 端点查询版本
 2. **索引文件获取**：客户端向服务端 `/modrinth.index.json` 获取索引文件
 3. **版本对比**：客户端对比本地版本与服务端版本
@@ -158,24 +264,38 @@
    - 手动回滚：通过 `/tipua rollback` 命令手动回滚
 10. **重启**：提示用户点击"退出游戏"按钮重启以使更改生效
 
+## Config File Migration
 ## 配置文件迁移
 
+When upgrading from an older version, the old config file `tipua-common.toml` will be automatically migrated:
+- Server config migrated to `tipua-server.toml`
+- Client config migrated to `tipua-client.toml`
+- Old config file backed up as `tipua-common.toml.bak`
 如果从旧版本升级，旧配置文件 `tipua-common.toml` 会自动迁移：
 - 服务端配置迁移到 `tipua-server.toml`
 - 客户端配置迁移到 `tipua-client.toml`
 - 旧配置文件备份为 `tipua-common.toml.bak`
 
+## Modrinth Integration
 ## Modrinth集成
 
+TIPUA is deeply integrated with Modrinth:
+- [Modrinth Page](https://modrinth.com/mod/tipua)
+- Auto-check for TIPUA mod updates
+- Display Modrinth changelogs in update preview UI
 TIPUA与Modrinth深度集成：
 - [Modrinth页面](https://modrinth.com/mod/tipua)
 - 自动检查TIPUA模组自身更新
 - 可在更新预览界面显示Modrinth更新日志
 
+## License
 ## 许可证
 
 [AGPL-3.0](LICENSE)
+[AGPL-3.0](LICENSE)
 
+## Team
 ## 制作团队
 
+[ByUsi Studio](https://about.cdifit.cn)
 [ByUsi Studio](https://about.cdifit.cn)
