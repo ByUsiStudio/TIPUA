@@ -1,34 +1,28 @@
 {
 	"schemaVersion": 1,
-	"id": "modid",
+	"id": "tipua",
 	"version": "${version}",
-	"name": "Example Mod",
-	"description": "This is an example description! Tell everyone what your mod is about!",
+	"name": "TIPUA",
+	"description": "A mod that automatically syncs modpack content between server and client via modrinth.index.json file.",
 	"authors": [
-		"Me!"
+		"ByUsi Studio"
 	],
 	"contact": {
-		"homepage": "https://fabricmc.net/",
-		"sources": "https://github.com/FabricMC/fabric-example-mod"
+		"homepage": "https://about.cdifit.cn",
+		"sources": "https://modrinth.com/mod/tipua"
 	},
-	"license": "CC0-1.0",
-	"icon": "assets/modid/icon.png",
+	"license": "AGPL-3.0",
+	"icon": "assets/tipua/icon.png",
 	"environment": "*",
 	"entrypoints": {
 		"main": [
-			"com.example.ExampleMod"
+			"miao.byusi.mc.fabric.tipua.TIPUAMod"
 		],
 		"client": [
-			"com.example.client.ExampleModClient"
+			"miao.byusi.mc.fabric.tipua.client.TIPUAClient"
 		]
 	},
-	"mixins": [
-		"modid.mixins.json",
-		{
-			"config": "modid.client.mixins.json",
-			"environment": "client"
-		}
-	],
+	"mixins": [],
 	"depends": {
 		"fabricloader": ">=0.19.3",
 		"minecraft": "~1.21.1",

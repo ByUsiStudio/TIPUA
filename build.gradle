@@ -18,7 +18,7 @@ loom {
 	splitEnvironmentSourceSets()
 
 	mods {
-		"modid" {
+		"tipua" {
 			sourceSet sourceSets.main
 			sourceSet sourceSets.client
 		}
