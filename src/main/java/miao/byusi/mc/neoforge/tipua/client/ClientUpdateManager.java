@@ -20,7 +20,7 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
+import java.util.zip.ZipFile;
 
 public class ClientUpdateManager {
     private static ExecutorService updateExecutor;
@@ -450,14 +450,15 @@ public class ClientUpdateManager {
     }
 
     private static boolean extractDataZip(Path zipPath, Path targetDir) {
-        try (ZipInputStream zis = new ZipInputStream(new FileInputStream(zipPath.toFile()))) {
-            ZipEntry entry;
-            while ((entry = zis.getNextEntry()) != null) {
-                Path entryPath = targetDir.resolve(entry.getName());
+        try (ZipFile zipFile = new ZipFile(zipPath.toFile())) {
+            java.util.Enumeration<? extends ZipEntry> entries = zipFile.entries();
+            while (entries.hasMoreElements()) {
+                ZipEntry entry = entries.nextElement();
+                Path entryPath = targetDir.resolve(entry.getName()).normalize();
+                Path targetDirNormalized = targetDir.normalize();
 
-                if (!entryPath.normalize().startsWith(targetDir.normalize())) {
+                if (!entryPath.startsWith(targetDirNormalized)) {
                     TIPUAMod.LOGGER.warn("跳过可疑路径: {}", entry.getName());
-                    zis.closeEntry();
                     continue;
                 }
 
@@ -465,9 +466,10 @@ public class ClientUpdateManager {
                     Files.createDirectories(entryPath);
                 } else {
                     Files.createDirectories(entryPath.getParent());
-                    Files.copy(zis, entryPath, StandardCopyOption.REPLACE_EXISTING);
+                    try (InputStream is = zipFile.getInputStream(entry)) {
+                        Files.copy(is, entryPath, StandardCopyOption.REPLACE_EXISTING);
+                    }
                 }
-                zis.closeEntry();
             }
 
             TIPUAMod.LOGGER.info("data.zip解压完成 / data.zip extraction completed");
