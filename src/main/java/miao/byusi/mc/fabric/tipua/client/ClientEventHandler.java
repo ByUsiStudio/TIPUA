@@ -8,6 +8,8 @@ public class ClientEventHandler {
     private static boolean hasTriggeredCheck = false;
 
     public static void register() {
+        ClientNetworkManager.initialize();
+
         ClientTickEvents.END_CLIENT_TICK.register(minecraft -> {
             onClientTick();
         });

@@ -7,6 +7,8 @@ import miao.byusi.mc.fabric.tipua.util.HashUtil;
 import miao.byusi.mc.fabric.tipua.util.ModrinthIndex;
 import miao.byusi.mc.fabric.tipua.util.RollbackManager;
 import miao.byusi.mc.fabric.tipua.util.VersionManager;
+import miao.byusi.mc.fabric.tipua.client.ClientNetworkManager;
+import net.fabricmc.loader.api.FabricLoader;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Minecraft;
 
@@ -72,37 +74,11 @@ public class ClientUpdateManager {
     }
 
     private static void doUpdateCheck() {
-        String serverAddress = ClientConfig.getServerAddress();
-        int serverPort = ClientConfig.getHttpPort();
-        String serverUrl = "http://" + serverAddress + ":" + serverPort;
-
-        TIPUAMod.LOGGER.info("Checking updates: {}", serverUrl);
-
-        String serverVersion = fetchServerVersion(serverUrl);
-        if (serverVersion.isEmpty() || !VersionManager.isValidVersion(serverVersion)) {
-            TIPUAMod.LOGGER.error("Failed to get server version or invalid format");
-            showToast("Update failed", "Server unavailable");
+        // Use Fabric channel-based transfer: require an active server connection
+        if (!isConnectedToServer()) {
+            TIPUAMod.LOGGER.info("Not connected to a server, skipping update check");
             return;
         }
-
-        String localVersion = VersionManager.getLocalVersion();
-        int comparison = VersionManager.compareVersions(serverVersion, localVersion);
-
-        if (comparison <= 0) {
-            TIPUAMod.LOGGER.info("Version match or newer, no update needed. Local: {}, Server: {}", localVersion, serverVersion);
-            if (ClientConfig.isShowUpdateNotification()) {
-                showToast("Up to date", "Modpack is up to date");
-            }
-            return;
-        }
-
-        TIPUAMod.LOGGER.info("Update needed, local: {}, server: {}", localVersion, serverVersion);
-
-        if (ClientConfig.isShowUpdateNotification()) {
-            showToast("Update available", "New version: " + serverVersion);
-        }
-
-        pendingServerVersion = serverVersion;
 
         Path gameDir = FabricLoader.getInstance().getGameDir();
         Path modsDir = gameDir.resolve("mods");
@@ -110,7 +86,8 @@ public class ClientUpdateManager {
         boolean modsExists = Files.exists(modsDir) && Files.isDirectory(modsDir);
         TIPUAMod.LOGGER.info("mods directory exists: {}", modsExists);
 
-        String indexJson = fetchIndexFromServer(serverUrl);
+        byte[] indexBytes = ClientNetworkManager.requestIndex();
+        String indexJson = (indexBytes == null) ? "" : new String(indexBytes);
         if (indexJson == null || indexJson.isEmpty()) {
             TIPUAMod.LOGGER.error("Failed to get index file from server");
             showToast("Update failed", "Failed to get index file");
@@ -133,7 +110,12 @@ public class ClientUpdateManager {
 
         previousVersion = VersionManager.getLocalVersion();
 
-        showDownloadScreen(serverVersion);
+        // Prefer Konkrete mod UI if present
+        if (FabricLoader.getInstance().isModLoaded("konkrete")) {
+            TIPUAMod.LOGGER.info("Konkrete mod detected — UI handled by Konkrete");
+        } else {
+            showDownloadScreen(index.getVersionId());
+        }
 
         startIndexDownload(index, serverUrl);
     }
@@ -261,10 +243,18 @@ public class ClientUpdateManager {
             }
         });
 
-        String dataZipUrl = serverUrl + "/data.zip";
         Path dataZipPath = gameDir.resolve(".tipua_data.zip");
 
-        if (downloadDataZip(dataZipUrl, dataZipPath)) {
+        byte[] dataZipBytes = ClientNetworkManager.requestDataZip();
+        if (dataZipBytes != null && dataZipBytes.length > 0) {
+            try {
+                Files.write(dataZipPath, dataZipBytes);
+            } catch (IOException e) {
+                TIPUAMod.LOGGER.error("Failed to write data.zip", e);
+            }
+        }
+
+        if (Files.exists(dataZipPath)) {
             executeOnMainThread(() -> {
                 if (downloadScreen != null) {
                     downloadScreen.addLogEntry("info", "Extracting data.zip...");
@@ -300,7 +290,10 @@ public class ClientUpdateManager {
         });
         cleanExtraFiles(gameDir, index.getFiles());
 
-        VersionManager.saveLocalVersion(pendingServerVersion);
+        // Save index's version id if present
+        if (index.getVersionId() != null && !index.getVersionId().isEmpty()) {
+            VersionManager.saveLocalVersion(index.getVersionId());
+        }
 
         isDownloading = false;
         updateInProgress = false;
