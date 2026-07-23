@@ -17,9 +17,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.List;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipFile;
-import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.zip.ZipEntry;
@@ -56,8 +53,7 @@ public class ClientUpdateManager {
 
     private static boolean isConnectedToServer() {
         Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft == null) return false;
-        return minecraft.player != null && minecraft.getNetworkHandler() != null;
+        return minecraft != null && minecraft.player != null;
     }
 
     private static void startUpdateCheck() {
@@ -345,7 +341,6 @@ public class ClientUpdateManager {
     }
 
     // HTTP-based helpers removed; data and files are transferred via Fabric networking (ClientNetworkManager)
-    }
 
     private static boolean extractDataZip(Path zipPath, Path targetDir) {
         try (ZipFile zipFile = new ZipFile(zipPath.toFile())) {
@@ -456,56 +451,7 @@ public class ClientUpdateManager {
         TIPUAMod.LOGGER.info("Download cancelled");
     }
 
-    private static String fetchServerVersion(String serverUrl) {
-        try {
-            URL url = new URL(serverUrl + "/version");
-            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-            connection.setConnectTimeout(10000);
-            connection.setReadTimeout(10000);
-            connection.setRequestProperty("User-Agent", "TIPUA/1.0.0");
-
-            if (connection.getResponseCode() != HttpURLConnection.HTTP_OK) {
-                TIPUAMod.LOGGER.error("Server error: {}", connection.getResponseCode());
-                return "";
-            }
-
-            try (InputStream is = connection.getInputStream()) {
-                BufferedReader reader = new BufferedReader(new InputStreamReader(is));
-                return reader.readLine().trim();
-            }
-        } catch (Exception e) {
-            TIPUAMod.LOGGER.error("Failed to fetch server version", e);
-            return "";
-        }
-    }
-
-    private static String fetchIndexFromServer(String serverUrl) {
-        try {
-            URL url = new URL(serverUrl + "/modrinth.index.json");
-            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-            connection.setConnectTimeout(10000);
-            connection.setReadTimeout(30000);
-            connection.setRequestProperty("User-Agent", "TIPUA/1.0.0");
-
-            if (connection.getResponseCode() != HttpURLConnection.HTTP_OK) {
-                TIPUAMod.LOGGER.error("Failed to get index file: HTTP {}", connection.getResponseCode());
-                return "";
-            }
-
-            try (InputStream is = connection.getInputStream()) {
-                BufferedReader reader = new BufferedReader(new InputStreamReader(is));
-                StringBuilder sb = new StringBuilder();
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    sb.append(line);
-                }
-                return sb.toString();
-            }
-        } catch (Exception e) {
-            TIPUAMod.LOGGER.error("Failed to fetch index file", e);
-            return "";
-        }
-    }
+    // HTTP helper methods removed.
 
     private static void deleteDirectory(Path directory) {
         try {
