@@ -1,0 +1,60 @@
+Microsoft Windows [版本 10.0.26200.8246]
+(c) Microsoft Corporation。保留所有权利。
+
+D:\ByUsi\Projects\TIPUA>.\build
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/9.2.1/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build
+Calculating task graph as configuration cache cannot be reused because file 'gradle.properties' has changed.
+
+> Task :compileJava
+D:\ByUsi\Projects\TIPUA\src\main\java\miao\byusi\mc\neoforge\tipua\client\ClientUpdateManager.java:211: 閿欒: 浠巐ambda 琛ㄨ揪寮忓紩鐢ㄧ殑鏈湴鍙橀噺蹇呴』鏄渶缁堝彉閲忔垨瀹為檯涓婄殑鏈€缁堝彉閲?
+> :compileJava                                                                                   downloadScreen.setFileProgress(i + 1, files.size(), fileName);
+                                                   ^
+D:\ByUsi\Projects\TIPUA\src\main\java\miao\byusi\mc\neoforge\tipua\client\ClientUpdateManager.java:237: 閿欒: 浠巐ambda 琛ㄨ揪寮忓紩鐢ㄧ殑鏈湴鍙橀噺蹇呴』鏄渶缁堝彉閲忔垨瀹為檯涓婄殑鏈€缁堝彉閲?
+                                                                                                     downloadScreen.updateDownloadProgress(downloadedSize, totalSize);
+                                                              ^
+D:\ByUsi\Projects\TIPUA\src\main\java\miao\byusi\mc\neoforge\tipua\client\ClientUpdateManager.j.java:364: 閿欒: 浠巐ambda 琛ㄨ揪寮忓紩鐢ㄧ殑鏈湴鍙橀噺蹇呴』鏄渶缁堝彉閲忔垨瀹為檯涓婄殑鏈€缁堝彉閲?
+                                                                                                           downloadScreen.addLogEntry("info", String.format("涓嬭浇涓?.. %d/%d", downloaded, contentLength));
+                                                                                             ^
+<=D:\ByUsi\Projects\TIPUA\src\main\java\miao\byusi\mc\neoforge\tipua\server\command\CommandRegistry.java:47: 閿欒: 鎵句笉鍒扮鍙?
+> IDLE                    String url = ServerConfig.getModpackDownloadUrl();
+                                         ^
+  绗﹀彿:   鏂规硶 getModpackDownloadUrl()
+  浣嶇疆: 绫?ServerConfig
+D:\ByUsi\Projects\TIPUA\src\main\java\miao\byusi\mc\neoforge\tipua\server\command\CommandRegistry.java:62: 閿欒: 鎵句笉鍒扮鍙?
+                        String downloadUrl = ServerConfig.getModpackDownloadUrl();
+                                                 ^
+  绗﹀彿:   鏂规硶 getModpackDownloadUrl()
+  浣嶇疆: 绫?ServerConfig
+娉? D:\ByUsi\Projects\TIPUA\src\main\java\miao\byusi\mc\neoforge\tipua\client\ClientUpdateManager.java浣跨敤鎴栬鐩栦簡宸茶繃鏃剁殑 API銆?
+<5 涓敊璇?[0K> 71% EXECUTING [2m 38s]伅, 璇蜂娇鐢?-Xlint:deprecation 閲嶆柊缂栬瘧銆?
+<
+> Task :compileJava FAILED
+
+[Incubating] Problems report is available at: file:///D:/ByUsi/Projects/TIPUA/build/reports/problems/problems-report.html
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':compileJava'.
+> Compilation failed; see the compiler output below.
+  D:\ByUsi\Projects\TIPUA\src\main\java\miao\byusi\mc\neoforge\tipua\client\ClientUpdateManager.java:211: 閿欒: 浠巐ambda 琛ㄨ揪寮忓紩鐢ㄧ殑鏈湴鍙橀噺蹇呴』鏄渶缁堝彉閲忔垨瀹為檯涓婄殑鏈€缁堝彉閲?
+                                                                                                     downloadScreen.setFileProgress(i + 1, files.size(), fileName);
+                                                     ^
+  5 涓敊璇?
+
+* Try:
+> Check your code and dependencies to fix the compilation error(s)
+> Run with --scan to generarate a Build Scan (powered by Develocity).
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 10.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/9.2.1/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD FAILED in 2m 50s
+27 actionable tasks: 5 executed, 22 up-to-date
+Configuration cache entry stored.
+
+D:\ByUsi\Projects\TIPUA>
