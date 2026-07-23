@@ -189,7 +189,7 @@ The server needs to place a `modrinth.index.json` file in the `config/tipua/` di
 ## Server Commands
 ## 服务端命令
 
-Server OPs can use the following commands:
+Server OPs can use the following commands:  
 服务端OP可使用以下命令：
 
 | Command | Description |
@@ -210,7 +210,7 @@ Server OPs can use the following commands:
 ## Client Commands
 ## 客户端命令
 
-Clients can use the following commands:
+Clients can use the following commands:  
 客户端可使用以下命令：
 
 | Command | Description |
